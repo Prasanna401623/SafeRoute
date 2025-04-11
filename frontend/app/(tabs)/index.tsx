@@ -1,74 +1,148 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import { StyleSheet, Platform, TouchableOpacity, View } from 'react-native';
+import { FontAwesome } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="dark" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <ThemedText style={styles.title}>SafeRoute</ThemedText>
+        <ThemedText style={styles.subtitle}>Navigate with Confidence</ThemedText>
+      </View>
+
+      {/* Quick Actions */}
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity style={styles.actionButton}>
+          <FontAwesome name="map-marker" size={24} color="#DB4437" style={styles.actionIcon} />
+          <ThemedText style={styles.actionText}>Start Navigation</ThemedText>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.actionButton}>
+          <FontAwesome name="history" size={24} color="#4285F4" style={styles.actionIcon} />
+          <ThemedText style={styles.actionText}>Recent Routes</ThemedText>
+        </TouchableOpacity>
+      </View>
+
+      {/* Safety Tips */}
+      <View style={styles.section}>
+        <ThemedText style={styles.sectionTitle}>Safety Tips</ThemedText>
+        <View style={styles.tipContainer}>
+          <FontAwesome name="lightbulb-o" size={20} color="#F4B400" style={styles.tipIcon} />
+          <ThemedText style={styles.tipText}>Stay in well-lit areas during night travel</ThemedText>
+        </View>
+        <View style={styles.tipContainer}>
+          <FontAwesome name="bell" size={20} color="#0F9D58" style={styles.tipIcon} />
+          <ThemedText style={styles.tipText}>Enable notifications for safety alerts</ThemedText>
+        </View>
+      </View>
+
+      {/* Crime Statistics */}
+      <View style={styles.section}>
+        <ThemedText style={styles.sectionTitle}>Area Statistics</ThemedText>
+        <ThemedText style={styles.descriptionText}>
+          View real-time crime statistics and safety scores for your area.
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <TouchableOpacity style={styles.statsButton}>
+          <ThemedText style={styles.statsButtonText}>View Statistics</ThemedText>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
   },
-  stepContainer: {
-    gap: 8,
+  header: {
+    marginTop: 20,
+    marginBottom: 40,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#1A237E',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  subtitle: {
+    fontSize: 16,
+    color: '#666666',
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+    gap: 16,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  actionIcon: {
+    marginBottom: 8,
+  },
+  actionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
+    textAlign: 'center',
+  },
+  section: {
+    marginBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1A237E',
+    marginBottom: 16,
+  },
+  tipContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  tipIcon: {
+    marginRight: 12,
+  },
+  tipText: {
+    fontSize: 14,
+    color: '#333333',
+    flex: 1,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 16,
+  },
+  statsButton: {
+    backgroundColor: '#1A237E',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  statsButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
