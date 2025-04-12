@@ -6,6 +6,7 @@ import * as Location from 'expo-location';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { API_BASE_URL } from '@/constants/config';
+import { router } from 'expo-router';
 
 type CrimeType = {
   id: string;
@@ -115,6 +116,9 @@ export default function ReportScreen() {
       
       // Show success with risk assessment
       alert(`Report submitted successfully!\nRisk Category: ${data.risk_area.risk_category}\nRisk Score: ${data.risk_area.risk_score.toFixed(2)}`);
+      
+      // Navigate back to map and force a refresh
+      router.replace('/map');
     } catch (error) {
       console.error('Error submitting report:', error);
       alert('Failed to submit report. Please try again.');

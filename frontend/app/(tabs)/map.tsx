@@ -6,6 +6,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { API_BASE_URL } from '@/constants/config';
+import { useIsFocused } from '@react-navigation/native';
 
 const DISTANCE_THRESHOLD = 100; // meters - check only after moving 100 meters
 const CHECK_INTERVAL = 15000; // 15 seconds - reduced frequency
@@ -26,6 +27,7 @@ export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const lastAlertTime = useRef<number>(0);
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     const initialize = async () => {
@@ -60,6 +62,13 @@ export default function MapScreen() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (isFocused && location && !isInitializing) {
+      // Check risk when screen comes into focus
+      checkRiskArea(location);
+    }
+  }, [isFocused]);
 
   const setupLocationUpdates = async () => {
     try {
