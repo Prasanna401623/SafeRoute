@@ -39,10 +39,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="stats"
+        name="report"
         options={{
-          title: 'Statistics',
-          tabBarIcon: ({ color }) => <FontAwesome name="bar-chart" size={24} color={color} />,
+          title: 'Report',
+          tabBarIcon: ({ color }) => <FontAwesome name="exclamation-triangle" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
