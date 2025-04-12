@@ -1,10 +1,11 @@
 {
   "dependencies": {
+    "expo": "^52.0.44",
     "expo-location": "~18.0.10",
     "react-native-maps": "^1.18.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
-    "@types/react": "~18.3.12"
+    "@types/react": "~18.3.12",
+    "typescript": "^5.3.3"
   }
 }

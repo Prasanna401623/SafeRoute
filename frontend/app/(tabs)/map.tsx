@@ -7,9 +7,8 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { API_BASE_URL } from '@/constants/config';
 
-const DJANGO_API_URL = 'http://10.255.43.142:8001/api/risk-area';  // Updated to use port 8001
-const DISTANCE_THRESHOLD = 25; // meters - reduced for more frequent checks
-const CHECK_INTERVAL = 5000; // 5 seconds
+const DISTANCE_THRESHOLD = 100; // meters - check only after moving 100 meters
+const CHECK_INTERVAL = 15000; // 15 seconds - reduced frequency
 const ULM_REGION = {
   latitude: 32.5293, // ULM Library coordinates
   longitude: -92.0745,
@@ -22,14 +21,39 @@ export default function MapScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [riskLevel, setRiskLevel] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const lastCheckedLocation = useRef<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<MapView>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
-  const [riskAreas, setRiskAreas] = useState([]);
+  const lastAlertTime = useRef<number>(0);
 
   useEffect(() => {
-    setupLocationUpdates();
-    fetchRiskAreas();
+    const initialize = async () => {
+      setIsInitializing(true);
+      try {
+        // Wait for location setup first
+        await setupLocationUpdates();
+        
+        // Add a small delay before checking risk
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Get initial location and check risk
+        let currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced
+        });
+        
+        if (currentLocation) {
+          await checkRiskArea(currentLocation);
+        }
+      } catch (error) {
+        console.error('Initialization error:', error);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initialize();
+
     return () => {
       if (locationSubscription.current) {
         locationSubscription.current.remove();
@@ -50,19 +74,13 @@ export default function MapScreen() {
         accuracy: Location.Accuracy.Balanced
       });
       setLocation(currentLocation);
-      checkRiskArea(currentLocation);
-
-      // Center map on current location
-      if (mapRef.current) {
-        mapRef.current.animateToRegion({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        });
+      
+      // Don't check risk area immediately, wait for initialization
+      if (!isInitializing) {
+        checkRiskArea(currentLocation);
       }
 
-      // Watch for location changes
+      // Watch for location changes with less frequent updates
       locationSubscription.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
@@ -71,22 +89,15 @@ export default function MapScreen() {
         },
         (newLocation) => {
           setLocation(newLocation);
-          checkIfShouldUpdateRisk(newLocation);
-          
-          // Animate map to new location
-          if (mapRef.current) {
-            mapRef.current.animateToRegion({
-              latitude: newLocation.coords.latitude,
-              longitude: newLocation.coords.longitude,
-              latitudeDelta: 0.005,
-              longitudeDelta: 0.005,
-            });
+          if (!isInitializing) {
+            checkIfShouldUpdateRisk(newLocation);
           }
         }
       );
     } catch (error) {
       console.error('Error:', error);
       setErrorMsg('Error getting location');
+      throw error; // Propagate error for initialization handling
     }
   };
 
@@ -106,6 +117,8 @@ export default function MapScreen() {
   };
 
   const checkIfShouldUpdateRisk = (newLocation: Location.LocationObject) => {
+    if (isSending) return; // Skip if already checking
+
     if (!lastCheckedLocation.current) {
       lastCheckedLocation.current = {
         latitude: newLocation.coords.latitude,
@@ -122,6 +135,7 @@ export default function MapScreen() {
       newLocation.coords.longitude
     );
 
+    // Only check if we've moved at least DISTANCE_THRESHOLD meters
     if (distance >= DISTANCE_THRESHOLD) {
       lastCheckedLocation.current = {
         latitude: newLocation.coords.latitude,
@@ -131,99 +145,70 @@ export default function MapScreen() {
     }
   };
 
-  const checkRiskArea = async (currentLocation: Location.LocationObject) => {
+  const checkRiskArea = async (currentLocation: Location.LocationObject, isManualCheck: boolean = false) => {
+    if (isSending) return; // Prevent multiple simultaneous requests
+
     try {
       setIsSending(true);
-      const url = `${DJANGO_API_URL}/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.1`;  // 100 meters
-      console.log('Checking URL:', url);
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      console.log('Response status:', response.status);
+      const url = `${API_BASE_URL}/risk/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.1`;
+      
+      const response = await fetch(url);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server response:', errorText);
-        
-        // Parse error text if it's JSON
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new Error(errorJson.error || `Server returned ${response.status}`);
-        } catch (e) {
-          throw new Error(`Server returned ${response.status}: ${errorText}`);
-        }
+        throw new Error(`Server returned ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Risk data received:', data);
       
       // Default to "D" (safe) if no risk category is returned
       const category = data.risk_category || "D";
+      const riskScore = data.risk_score || 0;
       
       if (category !== riskLevel) {
         setRiskLevel(category);
         
-        if (category === 'A' || category === 'B') {
+        // Show alerts for manual checks or high-risk areas
+        const now = Date.now();
+        if (isManualCheck || 
+            ((category === 'A' || category === 'B') && 
+             (now - lastAlertTime.current > 300000))) { // 5 minutes between automatic alerts
+          lastAlertTime.current = now;
           Alert.alert(
-            'Safety Alert!',
-            `You have entered a high-risk area (Level ${category}).\nPlease be cautious and aware of your surroundings.`,
+            'Risk Assessment',
+            `Risk Level: ${category}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(category)}`,
             [{ text: 'OK' }]
           );
         }
+      } else if (isManualCheck) {
+        // Always show alert for manual checks, even if risk level hasn't changed
+        Alert.alert(
+          'Risk Assessment',
+          `Risk Level: ${category}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(category)}`,
+          [{ text: 'OK' }]
+        );
       }
     } catch (error) {
       console.error('Error checking risk area:', error);
-      setErrorMsg(error instanceof Error ? error.message : 'Failed to check risk level');
-      // Default to safe when there's an error
-      setRiskLevel('D');
+      if (isManualCheck) { // Only show error for manual checks
+        setErrorMsg('Unable to check risk level');
+      }
     } finally {
       setIsSending(false);
     }
   };
 
-  const onRegionChange = (region: Region) => {
-    // Only check risk if we've moved significantly
-    if (location && lastCheckedLocation.current) {
-      const distance = calculateDistance(
-        lastCheckedLocation.current.latitude,
-        lastCheckedLocation.current.longitude,
-        region.latitude,
-        region.longitude
-      );
-
-      if (distance >= DISTANCE_THRESHOLD) {
-        checkRiskArea({
-          coords: {
-            latitude: region.latitude,
-            longitude: region.longitude,
-            altitude: null,
-            accuracy: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null,
-          },
-          timestamp: Date.now(),
-        });
-      }
-    }
-  };
-
-  const fetchRiskAreas = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/risk_areas/`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch risk areas');
-      }
-      const data = await response.json();
-      setRiskAreas(data);
-    } catch (error) {
-      console.error('Error fetching risk areas:', error);
+  const getRiskMessage = (category: string) => {
+    switch (category) {
+      case 'A':
+        return 'This is a high-risk area. Please be extremely cautious and aware of your surroundings.';
+      case 'B':
+        return 'This is a moderate-risk area. Stay alert and take necessary precautions.';
+      case 'C':
+        return 'This is a low-risk area. Exercise normal caution.';
+      case 'D':
+        return 'This is a safe area. Continue to stay aware of your surroundings.';
+      default:
+        return 'Unable to determine risk level. Stay cautious.';
     }
   };
 
@@ -235,11 +220,21 @@ export default function MapScreen() {
         showsUserLocation
         followsUserLocation
         showsMyLocationButton
-        onRegionChange={onRegionChange}
+        initialRegion={ULM_REGION}
       />
 
+      {/* Loading Indicator */}
+      {isInitializing && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1A237E" />
+          <ThemedText style={styles.loadingText}>
+            Initializing safety features...
+          </ThemedText>
+        </View>
+      )}
+
       {/* Risk Level Indicator */}
-      {riskLevel && (
+      {!isInitializing && riskLevel && (
         <View style={[
           styles.riskIndicator,
           { backgroundColor: getRiskColor(riskLevel) }
@@ -250,12 +245,15 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Controls Overlay */}
+      {/* Manual Check Button */}
       <View style={styles.controlsContainer}>
         <TouchableOpacity 
-          style={[styles.sendButton, isSending && styles.disabledButton]}
-          onPress={() => location && checkRiskArea(location)}
-          disabled={isSending}
+          style={[
+            styles.sendButton, 
+            (isSending || isInitializing) && styles.disabledButton
+          ]}
+          onPress={() => location && checkRiskArea(location, true)}
+          disabled={isSending || isInitializing}
         >
           <FontAwesome 
             name="refresh" 
@@ -267,7 +265,7 @@ export default function MapScreen() {
           </ThemedText>
         </TouchableOpacity>
 
-        {errorMsg && (
+        {errorMsg && !isInitializing && (
           <View style={styles.errorContainer}>
             <ThemedText style={styles.errorText}>{errorMsg}</ThemedText>
           </View>
@@ -353,5 +351,26 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: 'rgba(128, 128, 128, 0.5)',
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 20,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#1A237E',
+    textAlign: 'center',
   },
 }); 

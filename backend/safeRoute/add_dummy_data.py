@@ -8,11 +8,11 @@ django.setup()
 
 from alerts.models import CrimeIncident
 
-# ULM Library coordinates
+# ULM Library coordinates (high risk)
 ULM_LIBRARY_LAT = 32.5293
 ULM_LIBRARY_LON = -92.0745
 
-# Schulze Dining coordinates
+# Schulze Dining coordinates (low risk)
 SCHULZE_LAT = 32.5285
 SCHULZE_LON = -92.0739
 
@@ -21,27 +21,42 @@ CrimeIncident.objects.all().delete()
 
 # Add dummy incidents
 incidents = [
-    # High-risk area near library
+    # High-risk area near library (multiple recent, severe incidents)
     {
         'latitude': ULM_LIBRARY_LAT,
         'longitude': ULM_LIBRARY_LON,
-        'description': 'Suspicious activity reported',
-        'reported_at': datetime.now() - timedelta(days=1),
+        'description': 'Robbery reported',
+        'reported_at': datetime.now() - timedelta(hours=2),
         'severity': 4
     },
     {
-        'latitude': ULM_LIBRARY_LAT + 0.0002,
-        'longitude': ULM_LIBRARY_LON + 0.0002,
-        'description': 'Theft incident',
-        'reported_at': datetime.now() - timedelta(hours=12),
-        'severity': 3
+        'latitude': ULM_LIBRARY_LAT + 0.0001,
+        'longitude': ULM_LIBRARY_LON + 0.0001,
+        'description': 'Assault incident',
+        'reported_at': datetime.now() - timedelta(days=1),
+        'severity': 4
     },
-    # Safe area near Schulze
+    # Moderate risk area (single recent incident)
+    {
+        'latitude': ULM_LIBRARY_LAT - 0.001,
+        'longitude': ULM_LIBRARY_LON - 0.001,
+        'description': 'Theft reported',
+        'reported_at': datetime.now() - timedelta(days=2),
+        'severity': 2
+    },
+    # Low risk area near Schulze (old, minor incidents)
     {
         'latitude': SCHULZE_LAT,
         'longitude': SCHULZE_LON,
         'description': 'Minor disturbance',
-        'reported_at': datetime.now() - timedelta(days=5),
+        'reported_at': datetime.now() - timedelta(days=15),
+        'severity': 1
+    },
+    {
+        'latitude': SCHULZE_LAT + 0.0001,
+        'longitude': SCHULZE_LON + 0.0001,
+        'description': 'Suspicious activity',
+        'reported_at': datetime.now() - timedelta(days=20),
         'severity': 1
     }
 ]
