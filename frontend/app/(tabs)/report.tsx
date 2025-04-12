@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { FontAwesome } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
@@ -24,7 +25,7 @@ const CRIME_TYPES: CrimeType[] = [
   { id: 'SUSPICIOUS', label: 'Suspicious Activity', description: 'Unusual behavior', icon: 'eye' },
 ];
 
-const ULM_REGION = {
+const INITIAL_REGION = {
   latitude: 32.5293,
   longitude: -92.0745,
   latitudeDelta: 0.01,
@@ -33,12 +34,46 @@ const ULM_REGION = {
 
 export default function ReportScreen() {
   const [selectedLocation, setSelectedLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [selectedCrime, setSelectedCrime] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const mapRef = useRef<MapView>(null);
+
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError('Permission to access location was denied');
+        return;
+      }
+
+      try {
+        const location = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = location.coords;
+        setCurrentLocation({ latitude, longitude });
+        setSelectedLocation({ latitude, longitude });
+      } catch (error) {
+        setLocationError('Could not get your location');
+        console.error('Error getting location:', error);
+      }
+    })();
+  }, []);
 
   const handleMapPress = (e: any) => {
     setSelectedLocation(e.nativeEvent.coordinate);
+  };
+
+  const handleRecenter = async () => {
+    if (currentLocation && mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
+      setSelectedLocation(currentLocation);
+    }
   };
 
   const handleSubmit = async () => {
@@ -93,24 +128,52 @@ export default function ReportScreen() {
         {/* Map Section */}
         <View style={styles.mapContainer}>
           <ThemedText style={styles.sectionTitle}>Select Location</ThemedText>
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={ULM_REGION}
-            onPress={handleMapPress}
-          >
-            {selectedLocation && (
-              <Marker
-                coordinate={selectedLocation}
-                pinColor="#FF0000"
-              />
-            )}
-          </MapView>
-          {selectedLocation && (
+          <View style={styles.mapWrapper}>
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              initialRegion={currentLocation ? {
+                latitude: currentLocation.latitude,
+                longitude: currentLocation.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              } : INITIAL_REGION}
+              onPress={handleMapPress}
+              showsUserLocation={true}
+              showsMyLocationButton={false}
+              showsCompass={false}
+              showsScale={false}
+              showsTraffic={false}
+              showsBuildings={false}
+              showsIndoors={false}
+              showsPointsOfInterest={false}
+            >
+              {currentLocation && (
+                <Marker
+                  coordinate={currentLocation}
+                  pinColor="#4285F4"
+                  title="Your Location"
+                />
+              )}
+              {selectedLocation && selectedLocation !== currentLocation && (
+                <Marker
+                  coordinate={selectedLocation}
+                  pinColor="#FF0000"
+                  title="Selected Location"
+                />
+              )}
+            </MapView>
+            <TouchableOpacity style={styles.recenterButton} onPress={handleRecenter}>
+              <FontAwesome name="crosshairs" size={20} color="#1A237E" />
+            </TouchableOpacity>
+          </View>
+          {locationError ? (
+            <ThemedText style={styles.errorText}>{locationError}</ThemedText>
+          ) : selectedLocation ? (
             <ThemedText style={styles.locationText}>
               Location selected: {selectedLocation.latitude.toFixed(6)}, {selectedLocation.longitude.toFixed(6)}
             </ThemedText>
-          )}
+          ) : null}
         </View>
 
         {/* Crime Type Selection */}
@@ -193,6 +256,11 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
     }),
+  },
+  mapWrapper: {
+    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   map: {
     width: '100%',
@@ -282,5 +350,30 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  recenterButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 30,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  errorText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#FF0000',
+    fontStyle: 'italic',
   },
 }); 
