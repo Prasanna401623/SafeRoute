@@ -1,83 +1,136 @@
-# SafeRoute
+# SafeRoute 🗺️ 
 
-A mobile application that helps users navigate safely by providing crime prediction and safe route recommendations.
+SafeRoute is a mobile application that helps users navigate safely by providing crime predictions and suggesting safer routes.
 
-## Project Structure
+## 🚀 Quick Start
 
+### Prerequisites
+- Node.js (v14 or newer)
+- npm or yarn
+- Expo Go app on your iOS/Android device
+- Xcode (for iOS development)
+- Android Studio (for Android development)
+
+### Setting Up Your Development Environment
+
+1. **Clone the repository**
+```bash
+git clone [repository-url]
+cd SafeRoute
 ```
-SafeRoute/
-├── frontend/          # React Native (Expo) application
-│   ├── app/          # App screens and navigation
-│   ├── assets/       # Images and other static files
-│   ├── components/   # Reusable React components
-│   └── services/     # API and authentication services
-└── backend/          # Django backend (to be implemented)
-```
 
-## Getting Started
-
-### Frontend Setup
-
-1. Install dependencies:
+2. **Install Frontend Dependencies**
 ```bash
 cd frontend
 npm install
 ```
 
-2. Start the development server:
+3. **Start the Development Server**
 ```bash
 npx expo start
 ```
 
-3. Run on your device:
-   - Install Expo Go on your iOS/Android device
-   - Scan the QR code with your camera (iOS) or Expo Go app (Android)
+4. **Run on Your Device**
+- Install Expo Go on your iOS/Android device
+- Scan the QR code:
+  - iOS: Use your camera app
+  - Android: Use the Expo Go app
+- Or press 'i' for iOS simulator or 'a' for Android emulator
 
-### Environment Setup
+## 📱 Features
 
-1. Google OAuth Configuration:
-   - Ensure you have access to the Google Cloud Console
-   - Use the iOS client ID provided by the team
-   - The bundle identifier is `com.saferoute.app`
+- ✅ Google Authentication
+- ✅ Modern UI with consistent design
+- ✅ Tab-based navigation
+- 🚧 Map integration (in progress)
+- 🚧 Crime statistics (in progress)
+- 🚧 Backend integration (in progress)
 
-## Features Implemented
+## 🔑 Google OAuth Setup
 
-- [x] Google Authentication
-- [x] Modern UI with consistent design
-- [x] Tab-based navigation
-- [ ] Map integration (coming soon)
-- [ ] Crime statistics (coming soon)
-- [ ] Backend integration (coming soon)
+1. **Get the Client ID**
+   - Use the team's iOS client ID
+   - Bundle identifier: `com.saferoute.app`
 
-## Contributing
+2. **Configure Your Environment**
+   - The OAuth configuration is already set up in `app.json`
+   - No additional configuration needed for development
 
-1. Create a new branch for your feature:
+## 📁 Project Structure
+
+```
+SafeRoute/
+├── frontend/
+│   ├── app/                    # Main application screens
+│   │   ├── (tabs)/            # Tab-based navigation screens
+│   │   │   ├── index.tsx      # Home screen
+│   │   │   ├── map.tsx        # Map screen
+│   │   │   ├── stats.tsx      # Statistics screen
+│   │   │   └── profile.tsx    # Profile screen
+│   │   ├── login.tsx          # Login screen
+│   │   └── _layout.tsx        # Root layout configuration
+│   ├── assets/                # Images and static files
+│   ├── components/            # Reusable React components
+│   └── services/              # API and authentication services
+└── backend/                   # Django backend (coming soon)
+```
+
+## 🛠️ Development Workflow
+
+1. **Create a New Branch**
 ```bash
 git checkout -b feature/your-feature-name
 ```
 
-2. Make your changes and commit:
+2. **Make Your Changes**
+- Follow the existing code style
+- Keep components modular
+- Maintain the established design system
+
+3. **Test Your Changes**
+- Test on both iOS and Android
+- Verify Google Sign-In works
+- Check all navigation flows
+
+4. **Commit Your Changes**
 ```bash
 git add .
 git commit -m "Description of your changes"
-```
-
-3. Push your changes and create a pull request:
-```bash
 git push origin feature/your-feature-name
 ```
 
-## Tech Stack
+5. **Create a Pull Request**
+- Go to GitHub
+- Create a PR from your branch to main
+- Add a clear description of your changes
+- Request review from team members
 
-- Frontend:
-  - React Native (Expo)
-  - Expo Router for navigation
-  - Google Sign-In
-  - FontAwesome icons
-  - Custom UI components
+## 🎨 Design Guidelines
 
-- Backend (Planned):
-  - Django
-  - Django REST Framework
-  - PostgreSQL
-  - JWT Authentication 
+- **Colors**
+  - Primary Blue: `#1A237E`
+  - Text Dark: `#333333`
+  - Text Light: `#666666`
+  - Border Color: `#E0E0E0`
+
+- **Components**
+  - Use existing components from the components directory
+  - Maintain consistent styling with the design system
+  - Follow the login page's design language
+
+## 🤝 Need Help?
+
+- Check the [Expo documentation](https://docs.expo.dev)
+- Review the [React Native documentation](https://reactnative.dev)
+- Contact team lead for access to Google Cloud Console
+- Reach out to team members on our communication channel
+
+## 🔜 Coming Soon
+
+- Django backend integration
+- Google Maps integration
+- Crime data visualization
+- Route optimization algorithm
+- User preferences and history
+
+Remember to never commit sensitive information like API keys or credentials! 
