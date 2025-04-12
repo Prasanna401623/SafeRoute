@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
-import MapView, { Region, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Region, Marker, PROVIDER_GOOGLE, Polygon } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { FontAwesome } from '@expo/vector-icons';
 import { ThemedText } from '@/components/ThemedText';
@@ -17,6 +17,13 @@ const ULM_REGION = {
   longitudeDelta: 0.01,
 };
 
+// Add these new types
+type RiskArea = {
+  coordinates: { latitude: number; longitude: number }[];
+  riskLevel: string;
+  radius: number;
+};
+
 export default function MapScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -28,6 +35,8 @@ export default function MapScreen() {
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const lastAlertTime = useRef<number>(0);
   const isFocused = useIsFocused();
+  const [riskAreas, setRiskAreas] = useState<RiskArea[]>([]);
+  const [mapRegion, setMapRegion] = useState<Region>(ULM_REGION);
 
   useEffect(() => {
     const initialize = async () => {
@@ -221,16 +230,75 @@ export default function MapScreen() {
     }
   };
 
+  // Add this new function to fetch risk areas
+  const fetchRiskAreas = async (region: Region) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/risk_areas/?ne_lat=${region.latitude + region.latitudeDelta}&ne_lng=${region.longitude + region.longitudeDelta}&sw_lat=${region.latitude - region.latitudeDelta}&sw_lng=${region.longitude - region.longitudeDelta}`
+      );
+      
+      if (!response.ok) throw new Error('Failed to fetch risk areas');
+      
+      const data = await response.json();
+      setRiskAreas(data.areas || []);
+    } catch (error) {
+      console.error('Error fetching risk areas:', error);
+    }
+  };
+
+  // Add this effect to update risk areas when map region changes
+  useEffect(() => {
+    fetchRiskAreas(mapRegion);
+  }, [mapRegion]);
+
   return (
     <View style={styles.container}>
       <MapView
         ref={mapRef}
         style={styles.map}
         showsUserLocation
-        followsUserLocation
+        followsUserLocation={false}
         showsMyLocationButton
         initialRegion={ULM_REGION}
-      />
+        onRegionChangeComplete={setMapRegion}
+      >
+        {/* Add risk area polygons */}
+        {riskAreas.map((area, index) => (
+          <Polygon
+            key={index}
+            coordinates={area.coordinates}
+            fillColor={getRiskColor(area.riskLevel)}
+            strokeColor={getRiskColor(area.riskLevel).replace('0.5', '0.8')} // More opaque border
+            strokeWidth={2}
+            tappable={true}
+            onPress={() => {
+              Alert.alert(
+                'Area Risk Level',
+                `This area is ${area.riskLevel === 'A' ? 'High Risk' : 
+                  area.riskLevel === 'B' ? 'Moderate Risk' : 
+                  area.riskLevel === 'C' ? 'Low Risk' : 'Safe'}\n\n` +
+                `Radius: ${(area.radius * 1000).toFixed(0)} meters`
+              );
+            }}
+          />
+        ))}
+      </MapView>
+
+      {/* Color Legend */}
+      <View style={styles.legendContainer}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendColor, { backgroundColor: 'rgba(255, 0, 0, 0.5)' }]} />
+          <ThemedText style={styles.legendText}>High Risk</ThemedText>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendColor, { backgroundColor: 'rgba(255, 165, 0, 0.5)' }]} />
+          <ThemedText style={styles.legendText}>Moderate Risk</ThemedText>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendColor, { backgroundColor: 'rgba(255, 255, 0, 0.5)' }]} />
+          <ThemedText style={styles.legendText}>Low Risk</ThemedText>
+        </View>
+      </View>
 
       {/* Loading Indicator */}
       {isInitializing && (
@@ -249,7 +317,7 @@ export default function MapScreen() {
           { backgroundColor: getRiskColor(riskLevel) }
         ]}>
           <ThemedText style={styles.riskText}>
-            Risk Level: {riskLevel}
+            Current Risk Level: {riskLevel}
           </ThemedText>
         </View>
       )}
@@ -286,11 +354,14 @@ export default function MapScreen() {
 
 const getRiskColor = (level: string) => {
   switch (level) {
-    case 'A': return 'rgba(255, 0, 0, 0.7)'; // Red
-    case 'B': return 'rgba(255, 165, 0, 0.7)'; // Orange
-    case 'C': return 'rgba(255, 255, 0, 0.7)'; // Yellow
-    case 'D': return 'rgba(0, 255, 0, 0.7)'; // Green
-    default: return 'rgba(128, 128, 128, 0.7)'; // Gray
+    case 'A':
+      return 'rgba(255, 0, 0, 0.5)'; // Semi-transparent red for High Risk
+    case 'B':
+      return 'rgba(255, 165, 0, 0.5)'; // Semi-transparent orange for Moderate Risk
+    case 'C':
+      return 'rgba(255, 255, 0, 0.5)'; // Semi-transparent yellow for Low Risk
+    default:
+      return 'transparent'; // No color for safe areas
   }
 };
 
@@ -381,5 +452,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1A237E',
     textAlign: 'center',
+  },
+  legendContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    width: 140,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  legendColor: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  legendText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 }); 
