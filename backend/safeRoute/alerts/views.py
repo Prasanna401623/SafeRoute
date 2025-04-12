@@ -11,6 +11,20 @@ import math
 
 logger = logging.getLogger(__name__)
 
+# Initialize risk areas list with dummy data
+risk_areas = [
+    {
+        'center': {'latitude': 32.5293, 'longitude': -92.0745},  # ULM Library (High Risk)
+        'radius': 0.2,  # 200 meters
+        'riskLevel': 'A'
+    },
+    {
+        'center': {'latitude': 32.5285, 'longitude': -92.0739},  # Schulze Dining (Low Risk)
+        'radius': 0.2,  # 200 meters
+        'riskLevel': 'C'
+    }
+]
+
 class RiskAreaAPIView(APIView):
     def get(self, request, format=None):
         try:
@@ -72,42 +86,65 @@ class RiskAreaAPIView(APIView):
 
 class ReportCrimeAPIView(APIView):
     def post(self, request, format=None):
-        serializer = CrimeIncidentSerializer(data=request.data)
-        if serializer.is_valid():
-            incident = serializer.save()
+        try:
+            logger.info(f"Received crime report: {request.data}")
             
-            try:
-                user_lat = float(request.data.get("latitude"))
-                user_lon = float(request.data.get("longitude"))
-            except (ValueError, TypeError):
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
-            radius_km = 1.0
-            incidents = CrimeIncident.objects.all()
-            risk_score = compute_risk_score(incidents, user_lat, user_lon, radius_km)
-            features = {"risk_score": risk_score}
-            risk_category = ai_predict_risk(features)
-            
-            risk_area = RiskArea.objects.create(
-                latitude=user_lat,
-                longitude=user_lon,
-                risk_score=risk_score,
-                risk_category=risk_category,
-            )
-            
-            response_data = {
-                "crime_report": serializer.data,
-                "risk_area": {
-                    "risk_area_id": risk_area.id,
-                    "risk_score": risk_score,
-                    "risk_category": risk_category,
-                    "computed_at": risk_area.computed_at,
+            serializer = CrimeIncidentSerializer(data=request.data)
+            if serializer.is_valid():
+                incident = serializer.save()
+                logger.info(f"Saved crime incident: {incident.id}")
+                
+                try:
+                    user_lat = float(request.data.get("latitude"))
+                    user_lon = float(request.data.get("longitude"))
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Invalid coordinates: {e}")
+                    return Response({
+                        "error": "Invalid latitude or longitude"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                radius_km = 1.0
+                incidents = CrimeIncident.objects.all()
+                risk_score = compute_risk_score(incidents, user_lat, user_lon, radius_km)
+                features = {"risk_score": risk_score}
+                risk_category = ai_predict_risk(features)
+                
+                risk_area = RiskArea.objects.create(
+                    latitude=user_lat,
+                    longitude=user_lon,
+                    risk_score=risk_score,
+                    risk_category=risk_category,
+                )
+                logger.info(f"Created risk area: {risk_area.id}")
+                
+                # Update the risk areas list with the new report
+                risk_areas.append({
+                    'center': {'latitude': user_lat, 'longitude': user_lon},
+                    'radius': 0.2,  # 200 meters
+                    'riskLevel': risk_category
+                })
+                
+                response_data = {
+                    "crime_report": serializer.data,
+                    "risk_area": {
+                        "risk_area_id": risk_area.id,
+                        "risk_score": risk_score,
+                        "risk_category": risk_category,
+                        "computed_at": risk_area.computed_at,
+                    }
                 }
-            }
-            
-            return Response(response_data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                
+                logger.info(f"Successfully processed report: {response_data}")
+                return Response(response_data, status=status.HTTP_201_CREATED)
+            else:
+                logger.error(f"Serializer errors: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            logger.error(f"Error processing crime report: {str(e)}")
+            return Response({
+                "error": f"An error occurred while processing the report: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class MapRiskAreasAPIView(APIView):
     def get(self, request, format=None):
@@ -117,20 +154,6 @@ class MapRiskAreasAPIView(APIView):
             ne_lng = float(request.query_params.get('ne_lng', 0))
             sw_lat = float(request.query_params.get('sw_lat', 0))
             sw_lng = float(request.query_params.get('sw_lng', 0))
-            
-            # Define risk areas based on dummy data locations
-            risk_areas = [
-                {
-                    'center': {'latitude': 32.5293, 'longitude': -92.0745},  # ULM Library (High Risk)
-                    'radius': 0.2,  # 200 meters
-                    'riskLevel': 'A'
-                },
-                {
-                    'center': {'latitude': 32.5285, 'longitude': -92.0739},  # Schulze Dining (Low Risk)
-                    'radius': 0.2,  # 200 meters
-                    'riskLevel': 'C'
-                }
-            ]
             
             # Convert to response format with circles
             areas = []
