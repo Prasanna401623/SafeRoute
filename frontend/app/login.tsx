@@ -1,10 +1,11 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useGoogleAuth } from '../services/auth';
 import { router } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
+import { ThemedText } from '@/components/ThemedText';
 
 export default function LoginScreen() {
   const [isLoading, setIsLoading] = React.useState(false);
@@ -13,11 +14,8 @@ export default function LoginScreen() {
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true);
-      const userInfo = await signInWithGoogle();
-      if (userInfo) {
-        // Navigate to home screen after successful login
-        router.replace('/(tabs)');
-      }
+      await signInWithGoogle();
+      router.replace('/(tabs)');
     } catch (error) {
       console.error('Sign in error:', error);
     } finally {
@@ -31,43 +29,30 @@ export default function LoginScreen() {
       
       {/* Logo and Title */}
       <View style={styles.header}>
-        <Text style={styles.title}>SafeRoute</Text>
-        <Text style={styles.subtitle}>Navigate with Confidence</Text>
+        <ThemedText style={styles.title}>SafeRoute</ThemedText>
+        <ThemedText style={styles.subtitle}>Navigate with Confidence</ThemedText>
       </View>
 
       {/* Login Form */}
       <View style={styles.formContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.googleButton}
           onPress={handleGoogleSignIn}
           disabled={isLoading}
         >
           <FontAwesome name="google" size={24} color="#DB4437" style={styles.googleIcon} />
-          <Text style={styles.googleButtonText}>
+          <ThemedText style={styles.googleButtonText}>
             {isLoading ? 'Signing in...' : 'Continue with Google'}
-          </Text>
+          </ThemedText>
           {isLoading && <ActivityIndicator style={styles.loader} color="#4285F4" />}
-        </TouchableOpacity>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <TouchableOpacity 
-          style={styles.emailButton}
-          disabled={isLoading}
-        >
-          <Text style={styles.emailButtonText}>Continue with Email</Text>
         </TouchableOpacity>
       </View>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
+        <ThemedText style={styles.footerText}>
           By continuing, you agree to our Terms of Service and Privacy Policy
-        </Text>
+        </ThemedText>
       </View>
     </SafeAreaView>
   );
@@ -122,31 +107,6 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginLeft: 8,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E0E0E0',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#666666',
-  },
-  emailButton: {
-    backgroundColor: '#1A237E',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-  },
-  emailButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
   footer: {
     paddingBottom: 24,

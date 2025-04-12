@@ -14,7 +14,8 @@
       "config": {
         "googleSignIn": {
           "reservedClientId": "com.googleusercontent.apps.969890596290-n832rrc166o71mk1n2k70jaibh018nv1"
-        }
+        },
+        "googleMapsApiKey": "AIzaSyCKmdgIVLPtPUVDnZFsNx9OJsIergdQsOsY"
       }
     },
     "android": {
@@ -22,7 +23,12 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.saferoute.app"
+      "package": "com.saferoute.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "PASTE_YOUR_API_KEY_HERE"
+        }
+      }
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +44,12 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow SafeRoute to use your location to find safe routes and provide safety scores."
         }
       ]
     ],
