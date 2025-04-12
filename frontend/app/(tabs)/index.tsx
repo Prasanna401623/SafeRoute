@@ -1,58 +1,145 @@
-import { StyleSheet, Platform, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Platform, TouchableOpacity, View, ScrollView } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useEffect, useState } from 'react';
+import * as Location from 'expo-location';
+import { API_BASE_URL } from '@/constants/config';
 
 export default function HomeScreen() {
+  const [currentRisk, setCurrentRisk] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    // Update time every minute
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+
+    // Get initial risk level
+    getCurrentRisk();
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const getCurrentRisk = async () => {
+    try {
+      const location = await Location.getCurrentPositionAsync({});
+      const response = await fetch(
+        `${API_BASE_URL}/risk/?lat=${location.coords.latitude}&lon=${location.coords.longitude}&radius=0.1`
+      );
+      const data = await response.json();
+      setCurrentRisk(data.risk_category);
+    } catch (error) {
+      console.error('Error getting risk level:', error);
+    }
+  };
+
+  const getTimeBasedTips = () => {
+    const hour = currentTime.getHours();
+    if (hour >= 18 || hour <= 6) {
+      return [
+        {
+          icon: 'lightbulb-o',
+          color: '#F4B400',
+          text: 'Stay in well-lit areas and avoid dark alleys',
+        },
+        {
+          icon: 'group',
+          color: '#0F9D58',
+          text: 'Travel in groups when possible during night hours',
+        },
+      ];
+    } else {
+      return [
+        {
+          icon: 'eye',
+          color: '#4285F4',
+          text: 'Stay aware of your surroundings',
+        },
+        {
+          icon: 'map-marker',
+          color: '#DB4437',
+          text: 'Keep to main paths and populated areas',
+        },
+      ];
+    }
+  };
+
+  const getRiskBasedTips = () => {
+    if (!currentRisk) return [];
+    
+    switch (currentRisk) {
+      case 'A':
+        return [{
+          icon: 'exclamation-triangle',
+          color: '#DB4437',
+          text: 'High risk area detected. Consider alternative routes',
+        }];
+      case 'B':
+        return [{
+          icon: 'warning',
+          color: '#F4B400',
+          text: 'Moderate risk area. Stay alert and avoid isolated spots',
+        }];
+      default:
+        return [];
+    }
+  };
+
+  const tips = [...getTimeBasedTips(), ...getRiskBasedTips()];
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <ThemedText style={styles.title}>SafeRoute</ThemedText>
-        <ThemedText style={styles.subtitle}>Navigate with Confidence</ThemedText>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.actionsContainer}>
-        <TouchableOpacity style={styles.actionButton}>
-          <FontAwesome name="map-marker" size={24} color="#DB4437" style={styles.actionIcon} />
-          <ThemedText style={styles.actionText}>Start Navigation</ThemedText>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.actionButton}>
-          <FontAwesome name="history" size={24} color="#4285F4" style={styles.actionIcon} />
-          <ThemedText style={styles.actionText}>Recent Routes</ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      {/* Safety Tips */}
-      <View style={styles.section}>
-        <ThemedText style={styles.sectionTitle}>Safety Tips</ThemedText>
-        <View style={styles.tipContainer}>
-          <FontAwesome name="lightbulb-o" size={20} color="#F4B400" style={styles.tipIcon} />
-          <ThemedText style={styles.tipText}>Stay in well-lit areas during night travel</ThemedText>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <ThemedText style={styles.title}>SafeRoute</ThemedText>
+          <ThemedText style={styles.subtitle}>Navigate with Confidence</ThemedText>
         </View>
-        <View style={styles.tipContainer}>
-          <FontAwesome name="bell" size={20} color="#0F9D58" style={styles.tipIcon} />
-          <ThemedText style={styles.tipText}>Enable notifications for safety alerts</ThemedText>
-        </View>
-      </View>
 
-      {/* Crime Statistics */}
-      <View style={styles.section}>
-        <ThemedText style={styles.sectionTitle}>Area Statistics</ThemedText>
-        <ThemedText style={styles.descriptionText}>
-          View real-time crime statistics and safety scores for your area.
-        </ThemedText>
-        <TouchableOpacity style={styles.statsButton}>
-          <ThemedText style={styles.statsButtonText}>View Statistics</ThemedText>
-        </TouchableOpacity>
-      </View>
+        {/* Quick Actions */}
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity style={styles.actionButton}>
+            <FontAwesome name="map-marker" size={24} color="#DB4437" style={styles.actionIcon} />
+            <ThemedText style={styles.actionText}>Start Navigation</ThemedText>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionButton}>
+            <FontAwesome name="history" size={24} color="#4285F4" style={styles.actionIcon} />
+            <ThemedText style={styles.actionText}>Recent Routes</ThemedText>
+          </TouchableOpacity>
+        </View>
+
+        {/* Safety Tips */}
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Safety Tips</ThemedText>
+          {tips.map((tip, index) => (
+            <View key={index} style={styles.tipContainer}>
+              <FontAwesome name={tip.icon} size={20} color={tip.color} style={styles.tipIcon} />
+              <ThemedText style={styles.tipText}>{tip.text}</ThemedText>
+            </View>
+          ))}
+        </View>
+
+        {/* Crime Statistics */}
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Area Statistics</ThemedText>
+          <ThemedText style={styles.descriptionText}>
+            View real-time crime statistics and safety scores for your area.
+          </ThemedText>
+          <TouchableOpacity style={styles.statsButton}>
+            <ThemedText style={styles.statsButtonText}>View Statistics</ThemedText>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -61,7 +148,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   header: {
     marginTop: Platform.OS === 'ios' ? 40 : 20,
