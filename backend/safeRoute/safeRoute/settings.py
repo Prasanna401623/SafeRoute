@@ -137,6 +137,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://10.255.45.230:8000",
+    "exp://10.255.45.230:8081",
 ]
 
 # Rest Framework settings
