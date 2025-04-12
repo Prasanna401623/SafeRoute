@@ -29,8 +29,10 @@ export default function LoginScreen() {
       
       {/* Logo and Title */}
       <View style={styles.header}>
-        <ThemedText style={styles.title}>SafeRoute</ThemedText>
-        <ThemedText style={styles.subtitle}>Navigate with Confidence</ThemedText>
+        <View style={styles.titleContainer}>
+          <ThemedText style={styles.title}>SafeRoute</ThemedText>
+          <ThemedText style={styles.subtitle}>Navigate with Confidence</ThemedText>
+        </View>
       </View>
 
       {/* Login Form */}
@@ -62,27 +64,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
+    paddingTop: 40,
   },
   header: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    marginTop: 20,
+  },
+  titleContainer: {
+    alignItems: 'center',
+    width: '100%',
+    paddingVertical: 10,
   },
   title: {
-    fontSize: 36,
+    fontSize: 42,
     fontWeight: 'bold',
     color: '#1A237E',
-    marginBottom: 8,
+    marginBottom: 12,
+    textAlign: 'center',
+    lineHeight: 50,
+    textAlignVertical: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#666666',
+    textAlign: 'center',
   },
   formContainer: {
-    flex: 1,
+    flex: 2,
     justifyContent: 'center',
-    width: '100%',
+    paddingHorizontal: 24,
   },
   googleButton: {
     flexDirection: 'row',
@@ -91,9 +105,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   googleIcon: {
     marginRight: 12,
@@ -109,11 +131,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   footer: {
-    paddingBottom: 24,
+    padding: 24,
   },
   footerText: {
     textAlign: 'center',
     color: '#666666',
     fontSize: 12,
+    lineHeight: 18,
   },
 }); 
