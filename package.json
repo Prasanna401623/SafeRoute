@@ -2,5 +2,9 @@
   "dependencies": {
     "expo-location": "~18.0.10",
     "react-native-maps": "^1.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/react": "~18.3.12"
   }
 }

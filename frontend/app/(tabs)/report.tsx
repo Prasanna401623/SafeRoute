@@ -5,6 +5,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { API_BASE_URL } from '@/constants/config';
 
 type CrimeType = {
   id: string;
@@ -78,6 +79,7 @@ export default function ReportScreen() {
 
   const handleSubmit = async () => {
     if (!selectedLocation || !selectedCrime) {
+      alert('Please select a location and crime type');
       return;
     }
 
@@ -85,7 +87,7 @@ export default function ReportScreen() {
     const crimeType = CRIME_TYPES.find(c => c.id === selectedCrime);
 
     try {
-      const response = await fetch('http://10.255.43.142:8001/api/report_crime/', {
+      const response = await fetch(`${API_BASE_URL}/report_crime/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,10 +95,11 @@ export default function ReportScreen() {
         body: JSON.stringify({
           latitude: selectedLocation.latitude,
           longitude: selectedLocation.longitude,
-          crime_type: 'D', // Default risk category
-          incident_type: selectedCrime,
-          description: crimeType?.description || '',
-          timestamp: new Date().toISOString(),
+          description: `${selectedCrime}: ${crimeType?.description || ''}`,
+          reported_at: new Date().toISOString().split('.')[0] + 'Z',
+          severity: crimeType?.id === 'ASSAULT' || crimeType?.id === 'ROBBERY' ? 4 : 
+                   crimeType?.id === 'THEFT' || crimeType?.id === 'VANDALISM' ? 3 : 
+                   crimeType?.id === 'HARASSMENT' || crimeType?.id === 'TRESPASSING' ? 2 : 1
         }),
       });
 

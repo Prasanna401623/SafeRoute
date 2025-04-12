@@ -1,5 +1,6 @@
 from math import radians,sin, cos, atan2, sqrt
 from datetime import datetime
+from django.utils import timezone
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     R = 6371
@@ -14,7 +15,9 @@ def time_decay(reported_at):
     Computing  a decay factor (newer incidents get more weight).
     Here, k is a constant (adjustable); the function returns a value between 0 and 1.
     """
-    now = datetime.now()
+    now = timezone.now()
+    if timezone.is_naive(reported_at):
+        reported_at = timezone.make_aware(reported_at)
     delta_days = (now-reported_at).days
     k = 30.0
     return 1/(1 + delta_days/k)

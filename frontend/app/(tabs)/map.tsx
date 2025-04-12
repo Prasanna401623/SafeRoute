@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, TouchableOpacity, Alert, Platform } from 'react-native';
-import MapView, { Region } from 'react-native-maps';
+import { StyleSheet, View, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
+import MapView, { Region, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { FontAwesome } from '@expo/vector-icons';
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { API_BASE_URL } from '@/constants/config';
 
 const DJANGO_API_URL = 'http://10.255.43.142:8001/api/risk-area';  // Updated to use port 8001
 const DISTANCE_THRESHOLD = 25; // meters - reduced for more frequent checks
@@ -23,9 +25,11 @@ export default function MapScreen() {
   const lastCheckedLocation = useRef<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<MapView>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const [riskAreas, setRiskAreas] = useState([]);
 
   useEffect(() => {
     setupLocationUpdates();
+    fetchRiskAreas();
     return () => {
       if (locationSubscription.current) {
         locationSubscription.current.remove();
@@ -207,6 +211,19 @@ export default function MapScreen() {
           timestamp: Date.now(),
         });
       }
+    }
+  };
+
+  const fetchRiskAreas = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/risk_areas/`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch risk areas');
+      }
+      const data = await response.json();
+      setRiskAreas(data);
+    } catch (error) {
+      console.error('Error fetching risk areas:', error);
     }
   };
 
