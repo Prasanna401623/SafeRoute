@@ -20,8 +20,9 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const DISTANCE_THRESHOLD = 100; // meters - check only after moving 100 meters
-const CHECK_INTERVAL = 15000; // 15 seconds - reduced frequency
+const DISTANCE_THRESHOLD = 10; // meters
+const CHECK_INTERVAL = 5000; // 5 seconds
+const LOCATION_TASK_NAME = 'background-location-task';
 const ULM_REGION = {
   latitude: 32.5293, // ULM Library coordinates
   longitude: -92.0745,
@@ -95,14 +96,14 @@ export default function MapScreen() {
 
   const setupLocationUpdates = async () => {
     try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setErrorMsg('Permission to access location was denied');
         return;
       }
 
       let currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced
+        accuracy: Location.Accuracy.High
       });
       setLocation(currentLocation);
       
@@ -112,11 +113,12 @@ export default function MapScreen() {
 
       locationSubscription.current = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy.High,
           distanceInterval: DISTANCE_THRESHOLD,
           timeInterval: CHECK_INTERVAL,
         },
         (newLocation) => {
+          console.log('Location updated:', newLocation.coords);
           setLocation(newLocation);
           if (!isInitializing) {
             checkIfShouldUpdateRisk(newLocation);
@@ -168,14 +170,8 @@ export default function MapScreen() {
     console.log('Current location:', newLocation.coords);
     console.log('Last checked location:', lastCheckedLocation.current);
 
-    if (distance >= DISTANCE_THRESHOLD) {
-      console.log('Distance threshold reached, checking risk area');
-      lastCheckedLocation.current = {
-        latitude: newLocation.coords.latitude,
-        longitude: newLocation.coords.longitude,
-      };
-      checkRiskArea(newLocation);
-    }
+    // Always check if we're in a risk area, regardless of distance moved
+    checkRiskArea(newLocation);
   };
 
   const showNotification = async (riskLevel: string) => {
@@ -194,7 +190,8 @@ export default function MapScreen() {
       }
 
       const now = Date.now();
-      if (now - lastNotificationTime.current < 60000) { // 60 seconds cooldown
+      if (now - lastNotificationTime.current < 15000) {
+        console.log('Notification cooldown active, skipping...');
         return;
       }
       lastNotificationTime.current = now;
@@ -207,11 +204,13 @@ export default function MapScreen() {
         ? "You have entered a high-risk area. Please be extremely cautious."
         : "You have entered a moderate-risk area. Stay alert.";
 
+      console.log('Sending notification:', title);
       await Notifications.scheduleNotificationAsync({
         content: {
           title,
           body,
           sound: true,
+          priority: 'high',
         },
         trigger: null, // Show immediately
       });
@@ -267,7 +266,10 @@ export default function MapScreen() {
   }, [mapRegion]);
 
   const checkRiskArea = async (currentLocation: Location.LocationObject, isManualCheck: boolean = false) => {
-    if (isSending) return;
+    if (isSending) {
+      console.log('Check skipped - already sending');
+      return;
+    }
 
     try {
       setIsSending(true);
@@ -423,29 +425,27 @@ export default function MapScreen() {
 
       <View style={styles.controlsContainer}>
         <TouchableOpacity 
-          style={[
-            styles.sendButton, 
-            (isSending || isInitializing) && styles.disabledButton
-          ]}
-          onPress={() => location && checkRiskArea(location, true)}
-          disabled={isSending || isInitializing}
+          style={[styles.sendButton, isSending && styles.disabledButton]} 
+          onPress={() => {
+            if (location) {
+              console.log('Manual check triggered for location:', location.coords);
+              checkRiskArea(location);
+            }
+          }}
+          disabled={isSending}
         >
-          <FontAwesome 
-            name="refresh" 
-            size={20} 
-            color="#fff" 
-          />
+          <FontAwesome name="refresh" size={20} color="#fff" />
           <ThemedText style={styles.buttonText}>
             {isSending ? 'Checking...' : 'Check Now'}
           </ThemedText>
         </TouchableOpacity>
-
-        {errorMsg && !isInitializing && (
-          <View style={styles.errorContainer}>
-            <ThemedText style={styles.errorText}>{errorMsg}</ThemedText>
-          </View>
-        )}
       </View>
+
+      {errorMsg && (
+        <View style={styles.errorContainer}>
+          <ThemedText style={styles.errorText}>{errorMsg}</ThemedText>
+        </View>
+      )}
     </View>
   );
 }
