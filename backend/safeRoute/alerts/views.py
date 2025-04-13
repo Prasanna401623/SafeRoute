@@ -20,6 +20,18 @@ logger = logging.getLogger(__name__)
 # Initialize risk areas list with dummy data
 risk_areas = [
     {
+        'center': {'latitude': 32.505, 'longitude': -92.1239},  # Current location (High Risk)
+        'radius': 0.2,  # 200 meters
+        'riskLevel': 'A',
+        'crimeType': 'unknown'
+    },
+    {
+        'center': {'latitude': 32.505224, 'longitude': -92.1239},  # 25 meters north of current location
+        'radius': 0.025,  # 25 meters radius
+        'riskLevel': 'A',
+        'crimeType': 'test_area'
+    },
+    {
         'center': {'latitude': 32.5293, 'longitude': -92.0745},  # ULM Library (High Risk)
         'radius': 0.2,  # 200 meters
         'riskLevel': 'A',
