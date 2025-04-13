@@ -17,7 +17,6 @@ const ULM_REGION = {
   longitudeDelta: 0.01,
 };
 
-// Add these new types
 type RiskArea = {
   coordinates: { latitude: number; longitude: number }[];
   riskLevel: string;
@@ -42,13 +41,7 @@ export default function MapScreen() {
     const initialize = async () => {
       setIsInitializing(true);
       try {
-        // Wait for location setup first
         await setupLocationUpdates();
-        
-        // Add a small delay before checking risk
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Get initial location and check risk
         let currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced
         });
@@ -74,7 +67,6 @@ export default function MapScreen() {
 
   useEffect(() => {
     if (isFocused && location && !isInitializing) {
-      // Check risk when screen comes into focus
       checkRiskArea(location);
     }
   }, [isFocused]);
@@ -87,18 +79,15 @@ export default function MapScreen() {
         return;
       }
 
-      // Get initial location
       let currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced
       });
       setLocation(currentLocation);
       
-      // Don't check risk area immediately, wait for initialization
       if (!isInitializing) {
         checkRiskArea(currentLocation);
       }
 
-      // Watch for location changes with less frequent updates
       locationSubscription.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
@@ -115,12 +104,11 @@ export default function MapScreen() {
     } catch (error) {
       console.error('Error:', error);
       setErrorMsg('Error getting location');
-      throw error; // Propagate error for initialization handling
     }
   };
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371e3; // Earth's radius in meters
+    const R = 6371e3;
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
     const Δφ = ((lat2 - lat1) * Math.PI) / 180;
@@ -135,7 +123,7 @@ export default function MapScreen() {
   };
 
   const checkIfShouldUpdateRisk = (newLocation: Location.LocationObject) => {
-    if (isSending) return; // Skip if already checking
+    if (isSending) return;
 
     if (!lastCheckedLocation.current) {
       lastCheckedLocation.current = {
@@ -153,7 +141,6 @@ export default function MapScreen() {
       newLocation.coords.longitude
     );
 
-    // Only check if we've moved at least DISTANCE_THRESHOLD meters
     if (distance >= DISTANCE_THRESHOLD) {
       lastCheckedLocation.current = {
         latitude: newLocation.coords.latitude,
@@ -164,41 +151,29 @@ export default function MapScreen() {
   };
 
   const checkRiskArea = async (currentLocation: Location.LocationObject, isManualCheck: boolean = false) => {
-    if (isSending) return; // Prevent multiple simultaneous requests
+    if (isSending) return;
 
     try {
       setIsSending(true);
       const url = `${API_BASE_URL}/risk/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.1`;
       
       const response = await fetch(url);
-
       if (!response.ok) {
         throw new Error(`Server returned ${response.status}`);
       }
 
       const data = await response.json();
-      
-      // Default to "D" (safe) if no risk category is returned
       const category = data.risk_category || "D";
       const riskScore = data.risk_score || 0;
       
       if (category !== riskLevel) {
         setRiskLevel(category);
-        
-        // Show alerts for manual checks or high-risk areas
-        const now = Date.now();
-        if (isManualCheck || 
-            ((category === 'A' || category === 'B') && 
-             (now - lastAlertTime.current > 300000))) { // 5 minutes between automatic alerts
-          lastAlertTime.current = now;
-          Alert.alert(
-            'Risk Assessment',
-            `Risk Level: ${category}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(category)}`,
-            [{ text: 'OK' }]
-          );
-        }
+        Alert.alert(
+          'Risk Assessment',
+          `Risk Level: ${category}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(category)}`,
+          [{ text: 'OK' }]
+        );
       } else if (isManualCheck) {
-        // Always show alert for manual checks, even if risk level hasn't changed
         Alert.alert(
           'Risk Assessment',
           `Risk Level: ${category}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(category)}`,
@@ -207,8 +182,8 @@ export default function MapScreen() {
       }
     } catch (error) {
       console.error('Error checking risk area:', error);
-      if (isManualCheck) { // Only show error for manual checks
-        setErrorMsg('Unable to check risk level');
+      if (isManualCheck) {
+        setErrorMsg('Unable to check risk level. Please try again.');
       }
     } finally {
       setIsSending(false);
@@ -230,7 +205,6 @@ export default function MapScreen() {
     }
   };
 
-  // Add this new function to fetch risk areas
   const fetchRiskAreas = async (region: Region) => {
     try {
       const response = await fetch(
@@ -246,7 +220,6 @@ export default function MapScreen() {
     }
   };
 
-  // Add this effect to update risk areas when map region changes
   useEffect(() => {
     fetchRiskAreas(mapRegion);
   }, [mapRegion]);
@@ -262,13 +235,12 @@ export default function MapScreen() {
         initialRegion={ULM_REGION}
         onRegionChangeComplete={setMapRegion}
       >
-        {/* Add risk area polygons */}
         {riskAreas.map((area, index) => (
           <Polygon
             key={index}
             coordinates={area.coordinates}
             fillColor={getRiskColor(area.riskLevel)}
-            strokeColor={getRiskColor(area.riskLevel).replace('0.5', '0.8')} // More opaque border
+            strokeColor={getRiskColor(area.riskLevel).replace('0.5', '0.8')}
             strokeWidth={2}
             tappable={true}
             onPress={() => {
@@ -284,7 +256,6 @@ export default function MapScreen() {
         ))}
       </MapView>
 
-      {/* Color Legend */}
       <View style={styles.legendContainer}>
         <View style={styles.legendItem}>
           <View style={[styles.legendColor, { backgroundColor: 'rgba(255, 0, 0, 0.5)' }]} />
@@ -300,7 +271,6 @@ export default function MapScreen() {
         </View>
       </View>
 
-      {/* Loading Indicator */}
       {isInitializing && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1A237E" />
@@ -310,7 +280,6 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Risk Level Indicator */}
       {!isInitializing && riskLevel && (
         <View style={[
           styles.riskIndicator,
@@ -322,7 +291,6 @@ export default function MapScreen() {
         </View>
       )}
 
-      {/* Manual Check Button */}
       <View style={styles.controlsContainer}>
         <TouchableOpacity 
           style={[
@@ -355,13 +323,13 @@ export default function MapScreen() {
 const getRiskColor = (level: string) => {
   switch (level) {
     case 'A':
-      return 'rgba(255, 0, 0, 0.5)'; // Semi-transparent red for High Risk
+      return 'rgba(255, 0, 0, 0.5)';
     case 'B':
-      return 'rgba(255, 165, 0, 0.5)'; // Semi-transparent orange for Moderate Risk
+      return 'rgba(255, 165, 0, 0.5)';
     case 'C':
-      return 'rgba(255, 255, 0, 0.5)'; // Semi-transparent yellow for Low Risk
+      return 'rgba(255, 255, 0, 0.5)';
     default:
-      return 'transparent'; // No color for safe areas
+      return 'transparent';
   }
 };
 

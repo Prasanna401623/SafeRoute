@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { FontAwesome } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -7,6 +7,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { API_BASE_URL } from '@/constants/config';
 import { router } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 
 type CrimeType = {
   id: string;
@@ -32,6 +33,39 @@ const INITIAL_REGION = {
   longitude: -92.0745,
   latitudeDelta: 0.01,
   longitudeDelta: 0.01,
+};
+
+const REQUEST_TIMEOUT = 30000; // 30 seconds timeout
+const MAX_RETRIES = 2;
+
+const fetchWithTimeout = async (url: string, options = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
+
+const retryFetch = async (url: string, options = {}, retries = MAX_RETRIES) => {
+  try {
+    return await fetchWithTimeout(url, options);
+  } catch (error) {
+    if (retries > 0) {
+      console.log(`Retrying request... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return retryFetch(url, options, retries - 1);
+    }
+    throw error;
+  }
 };
 
 export default function ReportScreen() {
@@ -60,6 +94,23 @@ export default function ReportScreen() {
         console.error('Error getting location:', error);
       }
     })();
+
+    // Request notification permissions
+    const requestNotificationPermission = async () => {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        Alert.alert('Permission required', 'Please enable notifications to receive safety alerts.');
+      }
+    };
+
+    requestNotificationPermission();
   }, []);
 
   const handleMapPress = (e: any) => {
@@ -80,7 +131,7 @@ export default function ReportScreen() {
 
   const handleSubmit = async () => {
     if (!selectedLocation || !selectedCrime) {
-      alert('Please select a location and crime type');
+      Alert.alert('Error', 'Please select a location and crime type');
       return;
     }
 
@@ -88,7 +139,7 @@ export default function ReportScreen() {
     const crimeType = CRIME_TYPES.find(c => c.id === selectedCrime);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/report_crime/`, {
+      const response = await retryFetch(`${API_BASE_URL}/report_crime/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,15 +166,48 @@ export default function ReportScreen() {
       setSelectedCrime(null);
       
       // Show success with risk assessment
-      alert(`Report submitted successfully!\nRisk Category: ${data.risk_area?.risk_category || 'C'}`);
+      const riskCategory = data.risk_area?.risk_category || 'C';
+      const riskScore = data.risk_area?.risk_score || 0;
       
-      // Navigate back to map and force a refresh
-      router.replace('/map');
+      // Send notification if in high-risk area
+      if (riskCategory === 'A' || riskCategory === 'B') {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '⚠️ Safety Alert',
+            body: `You have reported an incident in a ${riskCategory === 'A' ? 'high' : 'moderate'} risk area. ${getRiskMessage(riskCategory)}`,
+            data: { riskLevel: riskCategory, riskScore },
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+          },
+          trigger: null,
+        });
+      }
+      
+      Alert.alert(
+        'Report Submitted',
+        `Report submitted successfully!\nRisk Category: ${riskCategory}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(riskCategory)}`,
+        [{ text: 'OK', onPress: () => router.replace('/map') }]
+      );
     } catch (error) {
       console.error('Error submitting report:', error);
-      alert('Failed to submit report. Please try again.');
+      Alert.alert('Error', 'Failed to submit report. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const getRiskMessage = (category: string) => {
+    switch (category) {
+      case 'A':
+        return 'This is a high-risk area. Please be extremely cautious and aware of your surroundings.';
+      case 'B':
+        return 'This is a moderate-risk area. Stay alert and take necessary precautions.';
+      case 'C':
+        return 'This is a low-risk area. Exercise normal caution.';
+      case 'D':
+        return 'This is a safe area. Continue to stay aware of your surroundings.';
+      default:
+        return 'Unable to determine risk level. Stay cautious.';
     }
   };
 
