@@ -60,7 +60,8 @@ export default function MapScreen() {
         });
         
         if (currentLocation) {
-          await checkRiskArea(currentLocation);
+          // Don't check risk area on initialization, just set the location
+          setLocation(currentLocation);
         }
       } catch (error) {
         console.error('Initialization error:', error);
@@ -77,12 +78,6 @@ export default function MapScreen() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (isFocused && location && !isInitializing) {
-      checkRiskArea(location);
-    }
-  }, [isFocused]);
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -153,6 +148,7 @@ export default function MapScreen() {
     if (isSending) return;
 
     if (!lastCheckedLocation.current) {
+      console.log('First location check:', newLocation.coords);
       lastCheckedLocation.current = {
         latitude: newLocation.coords.latitude,
         longitude: newLocation.coords.longitude,
@@ -168,7 +164,12 @@ export default function MapScreen() {
       newLocation.coords.longitude
     );
 
+    console.log('Distance moved:', distance, 'meters');
+    console.log('Current location:', newLocation.coords);
+    console.log('Last checked location:', lastCheckedLocation.current);
+
     if (distance >= DISTANCE_THRESHOLD) {
+      console.log('Distance threshold reached, checking risk area');
       lastCheckedLocation.current = {
         latitude: newLocation.coords.latitude,
         longitude: newLocation.coords.longitude,
@@ -270,6 +271,7 @@ export default function MapScreen() {
 
     try {
       setIsSending(true);
+      console.log('Checking risk area for location:', currentLocation.coords);
       const url = `${API_BASE_URL}/risk/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.2`;
       
       const response = await fetch(url);
@@ -279,6 +281,7 @@ export default function MapScreen() {
 
       const data = await response.json();
       const riskAreas = data.risk_areas || [];
+      console.log('Received risk areas:', riskAreas);
       
       // Check if current location is inside any risk area
       let currentRiskLevel = "D"; // Default to safe
@@ -292,8 +295,12 @@ export default function MapScreen() {
           area.center.longitude
         );
         
+        console.log('Distance to risk area:', distance, 'meters');
+        console.log('Risk area radius:', area.radius * 1000, 'meters');
+        
         // If within the radius of a risk area, use that risk level
         if (distance <= area.radius * 1000) { // Convert km to meters
+          console.log('Inside risk area! Distance:', distance, 'meters');
           currentRiskLevel = area.riskLevel;
           currentRiskScore = area.riskLevel === 'A' ? 0.8 : 
                            area.riskLevel === 'B' ? 0.5 : 
@@ -303,9 +310,11 @@ export default function MapScreen() {
       }
       
       if (currentRiskLevel !== riskLevel) {
+        console.log('Risk level changed from', riskLevel, 'to', currentRiskLevel);
         setRiskLevel(currentRiskLevel);
         // Show notification only for high or moderate risk
         if (currentRiskLevel === 'A' || currentRiskLevel === 'B') {
+          console.log('Showing notification for risk level:', currentRiskLevel);
           await showNotification(currentRiskLevel);
         }
         Alert.alert(
