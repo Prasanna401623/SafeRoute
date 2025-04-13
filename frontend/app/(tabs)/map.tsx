@@ -7,6 +7,18 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { API_BASE_URL } from '@/constants/config';
 import { useIsFocused } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+
+// Configure notifications for foreground only
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const DISTANCE_THRESHOLD = 100; // meters - check only after moving 100 meters
 const CHECK_INTERVAL = 15000; // 15 seconds - reduced frequency
@@ -32,10 +44,11 @@ export default function MapScreen() {
   const lastCheckedLocation = useRef<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<MapView>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
-  const lastAlertTime = useRef<number>(0);
   const isFocused = useIsFocused();
   const [riskAreas, setRiskAreas] = useState<RiskArea[]>([]);
   const [mapRegion, setMapRegion] = useState<Region>(ULM_REGION);
+  const [notificationPermission, setNotificationPermission] = useState(false);
+  const lastNotificationTime = useRef(0);
 
   useEffect(() => {
     const initialize = async () => {
@@ -70,6 +83,20 @@ export default function MapScreen() {
       checkRiskArea(location);
     }
   }, [isFocused]);
+
+  useEffect(() => {
+    const setupNotifications = async () => {
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        setNotificationPermission(status === 'granted');
+      } catch (error) {
+        console.warn('Error setting up notifications:', error);
+        // Continue without notifications
+      }
+    };
+
+    setupNotifications();
+  }, []);
 
   const setupLocationUpdates = async () => {
     try {
@@ -150,12 +177,100 @@ export default function MapScreen() {
     }
   };
 
+  const showNotification = async (riskLevel: string) => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('Failed to get push token for push notification!');
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastNotificationTime.current < 60000) { // 60 seconds cooldown
+        return;
+      }
+      lastNotificationTime.current = now;
+
+      const title = riskLevel === 'A' 
+        ? "⚠️ High Risk Area Alert" 
+        : "⚠️ Moderate Risk Area";
+      
+      const body = riskLevel === 'A'
+        ? "You have entered a high-risk area. Please be extremely cautious."
+        : "You have entered a moderate-risk area. Stay alert.";
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          sound: true,
+        },
+        trigger: null, // Show immediately
+      });
+    } catch (error) {
+      console.error('Error showing notification:', error);
+    }
+  };
+
+  const fetchRiskAreas = async (region: Region) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/risk/?lat=${region.latitude}&lon=${region.longitude}&radius=0.2`
+      );
+      
+      if (!response.ok) throw new Error('Failed to fetch risk areas');
+      
+      const data = await response.json();
+      const riskAreas = data.risk_areas || [];
+      
+      // Transform the risk areas into circle coordinates
+      const transformedAreas = riskAreas.map((area: any) => {
+        const points = [];
+        const center = area.center;
+        const radius = area.radius; // 0.2 km = 200 meters
+        
+        // Convert radius from kilometers to degrees
+        const radiusDeg = radius / 111.32; // 111.32 km per degree at equator
+        
+        // Generate points for a circle
+        for (let i = 0; i < 360; i += 10) {
+          const angle = i * (Math.PI / 180);
+          const lat = center.latitude + (radiusDeg * Math.cos(angle));
+          const lng = center.longitude + (radiusDeg * Math.sin(angle));
+          points.push({ latitude: lat, longitude: lng });
+        }
+        
+        return {
+          coordinates: points,
+          riskLevel: area.riskLevel,
+          radius: radius
+        };
+      });
+      
+      setRiskAreas(transformedAreas);
+    } catch (error) {
+      console.error('Error fetching risk areas:', error);
+      setErrorMsg('Failed to fetch risk areas');
+    }
+  };
+
+  useEffect(() => {
+    fetchRiskAreas(mapRegion);
+  }, [mapRegion]);
+
   const checkRiskArea = async (currentLocation: Location.LocationObject, isManualCheck: boolean = false) => {
     if (isSending) return;
 
     try {
       setIsSending(true);
-      const url = `${API_BASE_URL}/risk/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.1`;
+      const url = `${API_BASE_URL}/risk/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.2`;
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -163,20 +278,45 @@ export default function MapScreen() {
       }
 
       const data = await response.json();
-      const category = data.risk_category || "D";
-      const riskScore = data.risk_score || 0;
+      const riskAreas = data.risk_areas || [];
       
-      if (category !== riskLevel) {
-        setRiskLevel(category);
+      // Check if current location is inside any risk area
+      let currentRiskLevel = "D"; // Default to safe
+      let currentRiskScore = 0;
+      
+      for (const area of riskAreas) {
+        const distance = calculateDistance(
+          currentLocation.coords.latitude,
+          currentLocation.coords.longitude,
+          area.center.latitude,
+          area.center.longitude
+        );
+        
+        // If within the radius of a risk area, use that risk level
+        if (distance <= area.radius * 1000) { // Convert km to meters
+          currentRiskLevel = area.riskLevel;
+          currentRiskScore = area.riskLevel === 'A' ? 0.8 : 
+                           area.riskLevel === 'B' ? 0.5 : 
+                           area.riskLevel === 'C' ? 0.2 : 0;
+          break;
+        }
+      }
+      
+      if (currentRiskLevel !== riskLevel) {
+        setRiskLevel(currentRiskLevel);
+        // Show notification only for high or moderate risk
+        if (currentRiskLevel === 'A' || currentRiskLevel === 'B') {
+          await showNotification(currentRiskLevel);
+        }
         Alert.alert(
           'Risk Assessment',
-          `Risk Level: ${category}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(category)}`,
+          `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\n\n${getRiskMessage(currentRiskLevel)}`,
           [{ text: 'OK' }]
         );
       } else if (isManualCheck) {
         Alert.alert(
           'Risk Assessment',
-          `Risk Level: ${category}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(category)}`,
+          `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\n\n${getRiskMessage(currentRiskLevel)}`,
           [{ text: 'OK' }]
         );
       }
@@ -205,25 +345,6 @@ export default function MapScreen() {
     }
   };
 
-  const fetchRiskAreas = async (region: Region) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/risk_areas/?ne_lat=${region.latitude + region.latitudeDelta}&ne_lng=${region.longitude + region.longitudeDelta}&sw_lat=${region.latitude - region.latitudeDelta}&sw_lng=${region.longitude - region.longitudeDelta}`
-      );
-      
-      if (!response.ok) throw new Error('Failed to fetch risk areas');
-      
-      const data = await response.json();
-      setRiskAreas(data.areas || []);
-    } catch (error) {
-      console.error('Error fetching risk areas:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchRiskAreas(mapRegion);
-  }, [mapRegion]);
-
   return (
     <View style={styles.container}>
       <MapView
@@ -240,7 +361,7 @@ export default function MapScreen() {
             key={index}
             coordinates={area.coordinates}
             fillColor={getRiskColor(area.riskLevel)}
-            strokeColor={getRiskColor(area.riskLevel).replace('0.5', '0.8')}
+            strokeColor={getRiskColor(area.riskLevel)}
             strokeWidth={2}
             tappable={true}
             onPress={() => {

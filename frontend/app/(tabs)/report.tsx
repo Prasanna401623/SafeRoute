@@ -14,18 +14,17 @@ type CrimeType = {
   label: string;
   description: string;
   icon: keyof typeof FontAwesome.glyphMap;
+  riskLevel: string;
 };
 
 // Specific crime types with distinct categories
 const CRIME_TYPES: CrimeType[] = [
-  { id: 'ASSAULT', label: 'Assault', description: 'Physical attack or threat', icon: 'exclamation-triangle' },
-  { id: 'ROBBERY', label: 'Robbery', description: 'Theft with force or threat', icon: 'shield' },
-  { id: 'THEFT', label: 'Theft', description: 'Stealing without force', icon: 'shopping-bag' },
-  { id: 'VANDALISM', label: 'Vandalism', description: 'Property damage', icon: 'paint-brush' },
-  { id: 'HARASSMENT', label: 'Harassment', description: 'Threatening behavior', icon: 'user-times' },
-  { id: 'TRESPASSING', label: 'Trespassing', description: 'Unauthorized entry', icon: 'ban' },
-  { id: 'DISTURBANCE', label: 'Disturbance', description: 'Public disorder', icon: 'bullhorn' },
-  { id: 'SUSPICIOUS', label: 'Suspicious Activity', description: 'Unusual behavior', icon: 'eye' },
+  { id: 'SEXUAL_HARASSMENT', label: 'Sexual Harassment', description: 'Unwanted sexual behavior', icon: 'exclamation-triangle', riskLevel: 'A' },
+  { id: 'ASSAULT', label: 'Assault', description: 'Physical attack or threat', icon: 'exclamation-triangle', riskLevel: 'A' },
+  { id: 'ROBBERY', label: 'Robbery', description: 'Theft with force or threat', icon: 'shield', riskLevel: 'A' },
+  { id: 'BURGLARY', label: 'Burglary', description: 'Breaking and entering', icon: 'shield', riskLevel: 'B' },
+  { id: 'THEFT', label: 'Theft', description: 'Stealing without force', icon: 'shopping-bag', riskLevel: 'C' },
+  { id: 'VANDALISM', label: 'Vandalism', description: 'Property damage', icon: 'paint-brush', riskLevel: 'C' },
 ];
 
 const INITIAL_REGION = {
@@ -75,6 +74,8 @@ export default function ReportScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const mapRef = useRef<MapView>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -139,7 +140,7 @@ export default function ReportScreen() {
     const crimeType = CRIME_TYPES.find(c => c.id === selectedCrime);
 
     try {
-      const response = await retryFetch(`${API_BASE_URL}/report_crime/`, {
+      const response = await retryFetch(`${API_BASE_URL}/report-crime/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +148,7 @@ export default function ReportScreen() {
         body: JSON.stringify({
           latitude: selectedLocation.latitude,
           longitude: selectedLocation.longitude,
-          description: `${selectedCrime}: ${crimeType?.description || ''}`,
+          description: `${crimeType?.label}: ${crimeType?.description || ''}`,
           reported_at: new Date().toISOString().split('.')[0] + 'Z',
           severity: crimeType?.id === 'ASSAULT' || crimeType?.id === 'ROBBERY' ? 4 : 
                    crimeType?.id === 'THEFT' || crimeType?.id === 'VANDALISM' ? 3 : 
@@ -156,10 +157,12 @@ export default function ReportScreen() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit report');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server returned status ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('Backend Response:', data);
       
       // Reset form
       setSelectedLocation(null);
@@ -190,7 +193,10 @@ export default function ReportScreen() {
       );
     } catch (error) {
       console.error('Error submitting report:', error);
-      Alert.alert('Error', 'Failed to submit report. Please try again.');
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to submit report. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }

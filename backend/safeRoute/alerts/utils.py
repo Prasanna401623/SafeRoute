@@ -55,15 +55,20 @@ def determine_severity_from_data(text):
                 
     return severity if severity is not None else 1
 
-def compute_risk_score(incidents, user_lat, user_lon, radius_km=1.0):
+def compute_risk_score(incidents, user_lat, user_lon, radius_km=1.0, current_crime_type=None):
     """
     Compute risk score based on:
     1. Distance from incidents (closer = higher risk)
     2. Time since incidents (more recent = higher risk)
     3. Severity of incidents
+    4. Type of current crime (if provided)
     
     Risk score is normalized to be between 0 and 10
     """
+    # Base score for severe crimes
+    if current_crime_type and current_crime_type.lower() in ['sexual_harassment', 'assault', 'robbery']:
+        return 10.0  # Maximum risk for severe crimes
+    
     total_score = 0.0
     max_incident_score = 0.0  # Track highest individual incident score
     
@@ -100,17 +105,26 @@ def compute_risk_score(incidents, user_lat, user_lon, radius_km=1.0):
 def ai_predict_risk(features):
     """
     Predict risk category based on normalized risk score (0-10):
-    0-2.5: D (Safe)
-    2.5-5: C (Low Risk)
-    5-7.5: B (Moderate Risk)
-    7.5-10: A (High Risk)
+    0-2: D (Safe)
+    2-4: C (Low Risk)
+    4-7: B (Moderate Risk)
+    7-10: A (High Risk)
+    
+    For severe crimes (sexual harassment, assault, robbery), automatically set to A
     """
     risk_score = features.get("risk_score", 0)
-    if risk_score < 2.5:
+    crime_type = features.get("crime_type", "").lower()
+    
+    # Automatically set highest risk for severe crimes
+    if crime_type in ['sexual_harassment', 'assault', 'robbery']:
+        return "A"
+    
+    # Otherwise use risk score
+    if risk_score < 2:
         return "D"
-    elif risk_score < 5:
+    elif risk_score < 4:
         return "C"
-    elif risk_score < 7.5:
+    elif risk_score < 7:
         return "B"
     else:
         return "A"

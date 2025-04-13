@@ -141,8 +141,10 @@ CORS_ALLOWED_ORIGINS = [
     "exp://10.255.45.230:8081",
     "http://10.255.114.26:8000",
     "exp://10.255.114.26:8081",
-    "http://10.255.120.207:8000",  # Your current IP
-    "exp://10.255.120.207:8081",   # Your current IP for Expo
+    "http://10.255.120.207:8000",
+    "exp://10.255.120.207:8081",
+    "exp://10.255.114.26:19000",  # Add Expo dev client URL
+    "http://10.255.114.26:19000",  # Add Expo dev client URL
 ]
 
 # Rest Framework settings
