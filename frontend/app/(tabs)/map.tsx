@@ -96,37 +96,49 @@ export default function MapScreen() {
 
   const setupLocationUpdates = async () => {
     try {
+      console.log('Setting up location updates...');
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
+        console.log('Location permission denied');
         setErrorMsg('Permission to access location was denied');
         return;
       }
+      console.log('Location permission granted');
 
       let currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High
       });
+      console.log('Initial location received:', currentLocation.coords);
       setLocation(currentLocation);
       
       if (!isInitializing) {
+        console.log('Performing initial risk check');
         checkRiskArea(currentLocation);
       }
 
+      console.log('Starting location watch with interval:', CHECK_INTERVAL, 'ms');
       locationSubscription.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
           distanceInterval: DISTANCE_THRESHOLD,
           timeInterval: CHECK_INTERVAL,
+          mayShowUserSettingsDialog: true  // This will prompt for location settings if needed
         },
         (newLocation) => {
-          console.log('Location updated:', newLocation.coords);
+          console.log('Location update received at:', new Date().toISOString());
+          console.log('New coordinates:', newLocation.coords);
           setLocation(newLocation);
           if (!isInitializing) {
+            console.log('Triggering risk check for new location');
             checkIfShouldUpdateRisk(newLocation);
+          } else {
+            console.log('Skipping risk check - still initializing');
           }
         }
       );
+      console.log('Location watch setup complete');
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error in setupLocationUpdates:', error);
       setErrorMsg('Error getting location');
     }
   };
@@ -147,8 +159,12 @@ export default function MapScreen() {
   };
 
   const checkIfShouldUpdateRisk = (newLocation: Location.LocationObject) => {
-    if (isSending) return;
+    if (isSending) {
+      console.log('Risk check skipped - already processing a check');
+      return;
+    }
 
+    console.log('Starting risk check at:', new Date().toISOString());
     if (!lastCheckedLocation.current) {
       console.log('First location check:', newLocation.coords);
       lastCheckedLocation.current = {
@@ -166,11 +182,15 @@ export default function MapScreen() {
       newLocation.coords.longitude
     );
 
-    console.log('Distance moved:', distance, 'meters');
+    console.log('Distance from last check:', distance, 'meters');
     console.log('Current location:', newLocation.coords);
     console.log('Last checked location:', lastCheckedLocation.current);
 
-    // Always check if we're in a risk area, regardless of distance moved
+    lastCheckedLocation.current = {
+      latitude: newLocation.coords.latitude,
+      longitude: newLocation.coords.longitude,
+    };
+    console.log('Initiating risk area check');
     checkRiskArea(newLocation);
   };
 
@@ -267,7 +287,7 @@ export default function MapScreen() {
 
   const checkRiskArea = async (currentLocation: Location.LocationObject, isManualCheck: boolean = false) => {
     if (isSending) {
-      console.log('Check skipped - already sending');
+      console.log('Risk area check skipped - already processing');
       return;
     }
 
@@ -275,6 +295,7 @@ export default function MapScreen() {
       setIsSending(true);
       console.log('Checking risk area for location:', currentLocation.coords);
       const url = `${API_BASE_URL}/risk/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.2`;
+      console.log('Making API request to:', url);
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -282,12 +303,12 @@ export default function MapScreen() {
       }
 
       const data = await response.json();
+      console.log('Received risk data:', data);
       const riskAreas = data.risk_areas || [];
-      console.log('Received risk areas:', riskAreas);
       
-      // Check if current location is inside any risk area
       let currentRiskLevel = "D"; // Default to safe
       let currentRiskScore = 0;
+      let closestDistance = Infinity;
       
       for (const area of riskAreas) {
         const distance = calculateDistance(
@@ -297,37 +318,36 @@ export default function MapScreen() {
           area.center.longitude
         );
         
-        console.log('Distance to risk area:', distance, 'meters');
+        console.log(`Distance to risk area (${area.riskLevel}):`, distance, 'meters');
         console.log('Risk area radius:', area.radius * 1000, 'meters');
         
-        // If within the radius of a risk area, use that risk level
-        if (distance <= area.radius * 1000) { // Convert km to meters
+        if (distance <= area.radius * 1000) {
           console.log('Inside risk area! Distance:', distance, 'meters');
           currentRiskLevel = area.riskLevel;
           currentRiskScore = area.riskLevel === 'A' ? 0.8 : 
                            area.riskLevel === 'B' ? 0.5 : 
                            area.riskLevel === 'C' ? 0.2 : 0;
+          closestDistance = distance;
           break;
         }
       }
       
+      console.log('Current risk level:', currentRiskLevel, 'Previous risk level:', riskLevel);
       if (currentRiskLevel !== riskLevel) {
-        console.log('Risk level changed from', riskLevel, 'to', currentRiskLevel);
+        console.log('Risk level changed! Updating and showing notification');
         setRiskLevel(currentRiskLevel);
-        // Show notification only for high or moderate risk
         if (currentRiskLevel === 'A' || currentRiskLevel === 'B') {
-          console.log('Showing notification for risk level:', currentRiskLevel);
           await showNotification(currentRiskLevel);
         }
         Alert.alert(
           'Risk Assessment',
-          `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\n\n${getRiskMessage(currentRiskLevel)}`,
+          `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\nDistance: ${closestDistance.toFixed(2)}m\n\n${getRiskMessage(currentRiskLevel)}`,
           [{ text: 'OK' }]
         );
       } else if (isManualCheck) {
         Alert.alert(
           'Risk Assessment',
-          `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\n\n${getRiskMessage(currentRiskLevel)}`,
+          `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\nDistance: ${closestDistance.toFixed(2)}m\n\n${getRiskMessage(currentRiskLevel)}`,
           [{ text: 'OK' }]
         );
       }
