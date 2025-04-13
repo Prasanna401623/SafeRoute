@@ -231,11 +231,13 @@ export default function MapScreen() {
           body,
           sound: true,
           priority: 'high',
+          vibrate: [0, 250, 250, 250], // Add vibration pattern
         },
         trigger: null, // Show immediately
       });
     } catch (error) {
       console.error('Error showing notification:', error);
+      throw error; // Re-throw to handle in checkRiskArea
     }
   };
 
@@ -291,73 +293,91 @@ export default function MapScreen() {
       return;
     }
 
-    try {
-      setIsSending(true);
-      console.log('Checking risk area for location:', currentLocation.coords);
-      const url = `${API_BASE_URL}/risk/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.2`;
-      console.log('Making API request to:', url);
-      
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
-      }
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
 
-      const data = await response.json();
-      console.log('Received risk data:', data);
-      const riskAreas = data.risk_areas || [];
-      
-      let currentRiskLevel = "D"; // Default to safe
-      let currentRiskScore = 0;
-      let closestDistance = Infinity;
-      
-      for (const area of riskAreas) {
-        const distance = calculateDistance(
-          currentLocation.coords.latitude,
-          currentLocation.coords.longitude,
-          area.center.latitude,
-          area.center.longitude
-        );
+    while (retryCount < MAX_RETRIES) {
+      try {
+        setIsSending(true);
+        console.log('Checking risk area for location:', currentLocation.coords);
+        const url = `${API_BASE_URL}/risk/?lat=${currentLocation.coords.latitude}&lon=${currentLocation.coords.longitude}&radius=0.2`;
+        console.log('Making API request to:', url);
         
-        console.log(`Distance to risk area (${area.riskLevel}):`, distance, 'meters');
-        console.log('Risk area radius:', area.radius * 1000, 'meters');
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Received risk data:', data);
+        const riskAreas = data.risk_areas || [];
         
-        if (distance <= area.radius * 1000) {
-          console.log('Inside risk area! Distance:', distance, 'meters');
-          currentRiskLevel = area.riskLevel;
-          currentRiskScore = area.riskLevel === 'A' ? 0.8 : 
-                           area.riskLevel === 'B' ? 0.5 : 
-                           area.riskLevel === 'C' ? 0.2 : 0;
-          closestDistance = distance;
-          break;
+        let currentRiskLevel = "D"; // Default to safe
+        let currentRiskScore = 0;
+        let closestDistance = Infinity;
+        
+        for (const area of riskAreas) {
+          const distance = calculateDistance(
+            currentLocation.coords.latitude,
+            currentLocation.coords.longitude,
+            area.center.latitude,
+            area.center.longitude
+          );
+          
+          console.log(`Distance to risk area (${area.riskLevel}):`, distance, 'meters');
+          console.log('Risk area radius:', area.radius * 1000, 'meters');
+          
+          if (distance <= area.radius * 1000) {
+            console.log('Inside risk area! Distance:', distance, 'meters');
+            currentRiskLevel = area.riskLevel;
+            currentRiskScore = area.riskLevel === 'A' ? 0.8 : 
+                             area.riskLevel === 'B' ? 0.5 : 
+                             area.riskLevel === 'C' ? 0.2 : 0;
+            closestDistance = distance;
+            break;
+          }
         }
-      }
-      
-      console.log('Current risk level:', currentRiskLevel, 'Previous risk level:', riskLevel);
-      if (currentRiskLevel !== riskLevel) {
-        console.log('Risk level changed! Updating and showing notification');
-        setRiskLevel(currentRiskLevel);
-        if (currentRiskLevel === 'A' || currentRiskLevel === 'B') {
-          await showNotification(currentRiskLevel);
+        
+        console.log('Current risk level:', currentRiskLevel, 'Previous risk level:', riskLevel);
+        if (currentRiskLevel !== riskLevel) {
+          console.log('Risk level changed! Updating and showing notification');
+          setRiskLevel(currentRiskLevel);
+          if (currentRiskLevel === 'A' || currentRiskLevel === 'B') {
+            try {
+              await showNotification(currentRiskLevel);
+            } catch (notificationError) {
+              console.error('Failed to show notification:', notificationError);
+              // Still show the alert even if notification fails
+              Alert.alert(
+                'Risk Assessment',
+                `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\nDistance: ${closestDistance.toFixed(2)}m\n\n${getRiskMessage(currentRiskLevel)}`,
+                [{ text: 'OK' }]
+              );
+            }
+          }
+        } else if (isManualCheck) {
+          Alert.alert(
+            'Risk Assessment',
+            `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\nDistance: ${closestDistance.toFixed(2)}m\n\n${getRiskMessage(currentRiskLevel)}`,
+            [{ text: 'OK' }]
+          );
         }
-        Alert.alert(
-          'Risk Assessment',
-          `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\nDistance: ${closestDistance.toFixed(2)}m\n\n${getRiskMessage(currentRiskLevel)}`,
-          [{ text: 'OK' }]
-        );
-      } else if (isManualCheck) {
-        Alert.alert(
-          'Risk Assessment',
-          `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\nDistance: ${closestDistance.toFixed(2)}m\n\n${getRiskMessage(currentRiskLevel)}`,
-          [{ text: 'OK' }]
-        );
+        break; // Success, exit retry loop
+      } catch (error) {
+        console.error(`Error checking risk area (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+        retryCount++;
+        if (retryCount < MAX_RETRIES) {
+          console.log('Retrying in 2 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          console.error('Max retries reached, giving up');
+          if (isManualCheck) {
+            setErrorMsg('Unable to check risk level. Please try again.');
+          }
+        }
+      } finally {
+        setIsSending(false);
       }
-    } catch (error) {
-      console.error('Error checking risk area:', error);
-      if (isManualCheck) {
-        setErrorMsg('Unable to check risk level. Please try again.');
-      }
-    } finally {
-      setIsSending(false);
     }
   };
 
