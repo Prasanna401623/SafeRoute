@@ -49,6 +49,17 @@ class RiskAreaAPIView(APIView):
                     "error": "'lat', 'lon', and 'radius' must be numeric."
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # For now, just return the dummy risk areas
+            response_data = {
+                "risk_areas": risk_areas,
+                "message": "Using dummy data for risk areas"
+            }
+            
+            logger.info(f"Returning dummy risk areas")
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+            # TODO: Uncomment and fix this code when implementing real-time risk calculation
+            """
             # Get all incidents
             incidents = CrimeIncident.objects.all()
             logger.info(f"Found {incidents.count()} incidents in database")
@@ -77,6 +88,7 @@ class RiskAreaAPIView(APIView):
             
             logger.info(f"Computed risk area: {response_data}")
             return Response(response_data, status=status.HTTP_200_OK)
+            """
             
         except Exception as e:
             logger.error(f"Error processing risk area request: {str(e)}")
@@ -103,6 +115,29 @@ class ReportCrimeAPIView(APIView):
                         "error": "Invalid latitude or longitude"
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
+                # For now, use a dummy risk category
+                risk_category = 'C'  # Default to medium risk
+                
+                # Update the risk areas list with the new report
+                risk_areas.append({
+                    'center': {'latitude': user_lat, 'longitude': user_lon},
+                    'radius': 0.2,  # 200 meters
+                    'riskLevel': risk_category
+                })
+                
+                response_data = {
+                    "crime_report": serializer.data,
+                    "risk_area": {
+                        "risk_category": risk_category,
+                        "message": "Using dummy risk category"
+                    }
+                }
+                
+                logger.info(f"Successfully processed report: {response_data}")
+                return Response(response_data, status=status.HTTP_201_CREATED)
+                
+                # TODO: Uncomment and fix this code when implementing real-time risk calculation
+                """
                 radius_km = 1.0
                 incidents = CrimeIncident.objects.all()
                 risk_score = compute_risk_score(incidents, user_lat, user_lon, radius_km)
@@ -117,13 +152,6 @@ class ReportCrimeAPIView(APIView):
                 )
                 logger.info(f"Created risk area: {risk_area.id}")
                 
-                # Update the risk areas list with the new report
-                risk_areas.append({
-                    'center': {'latitude': user_lat, 'longitude': user_lon},
-                    'radius': 0.2,  # 200 meters
-                    'riskLevel': risk_category
-                })
-                
                 response_data = {
                     "crime_report": serializer.data,
                     "risk_area": {
@@ -133,9 +161,7 @@ class ReportCrimeAPIView(APIView):
                         "computed_at": risk_area.computed_at,
                     }
                 }
-                
-                logger.info(f"Successfully processed report: {response_data}")
-                return Response(response_data, status=status.HTTP_201_CREATED)
+                """
             else:
                 logger.error(f"Serializer errors: {serializer.errors}")
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

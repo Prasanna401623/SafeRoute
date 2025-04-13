@@ -115,7 +115,7 @@ export default function ReportScreen() {
       setSelectedCrime(null);
       
       // Show success with risk assessment
-      alert(`Report submitted successfully!\nRisk Category: ${data.risk_area.risk_category}\nRisk Score: ${data.risk_area.risk_score.toFixed(2)}`);
+      alert(`Report submitted successfully!\nRisk Category: ${data.risk_area?.risk_category || 'C'}`);
       
       // Navigate back to map and force a refresh
       router.replace('/map');
