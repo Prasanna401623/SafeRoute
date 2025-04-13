@@ -4,23 +4,52 @@ import { useEffect, useState } from 'react';
 
 WebBrowser.maybeCompleteAuthSession();
 
+interface UserInfo {
+  email: string | null;
+  displayName: string | null;
+  photoUrl: string | null;
+}
+
 export const useGoogleAuth = () => {
-  const [userInfo, setUserInfo] = useState<any>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo>({
+    email: null,
+    displayName: 'Prasanna Jha',
+    photoUrl: null
+  });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: "969890596290-n832rrc166o71mk1n2k70jaibh018nv1.apps.googleusercontent.com",
     clientId: "969890596290-n832rrc166o71mk1n2k70jaibh018nv1.apps.googleusercontent.com",
-    redirectUri: "com.saferoute.app:/oauth2redirect/google"
+    redirectUri: "com.saferoute.app:/oauth2redirect/google",
+    scopes: ['profile', 'email']
   });
 
   useEffect(() => {
-    if (response?.type === 'success') {
-      const { authentication } = response;
-      console.log('Authentication successful:', authentication);
-      setUserInfo(authentication);
-    } else if (response?.type === 'error') {
-      console.error('Authentication error:', response.error);
-    }
+    const fetchUserInfo = async () => {
+      if (response?.type === 'success' && response.authentication) {
+        try {
+          // Fetch user profile information
+          const userInfoResponse = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+            headers: { Authorization: `Bearer ${response.authentication.accessToken}` },
+          });
+          const userData = await userInfoResponse.json();
+          
+          const userInfo: UserInfo = {
+            email: userData.email,
+            displayName: userData.name,
+            photoUrl: userData.picture,
+          };
+          
+          setUserInfo(userInfo);
+        } catch (error) {
+          console.error('Error fetching user info:', error);
+        }
+      } else if (response?.type === 'error') {
+        console.error('Authentication error:', response.error);
+      }
+    };
+
+    fetchUserInfo();
   }, [response]);
 
   const signInWithGoogle = async () => {
@@ -37,7 +66,11 @@ export const useGoogleAuth = () => {
 
   const signOut = async () => {
     try {
-      setUserInfo(null);
+      setUserInfo({
+        email: null,
+        displayName: 'Prasanna Jha',
+        photoUrl: null
+      });
     } catch (error) {
       console.error('Sign Out Error:', error);
       throw error;

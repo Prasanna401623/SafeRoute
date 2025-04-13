@@ -170,7 +170,6 @@ export default function ReportScreen() {
       
       // Show success with risk assessment
       const riskCategory = data.risk_area?.risk_category || 'C';
-      const riskScore = data.risk_area?.risk_score || 0;
       
       // Send notification if in high-risk area
       if (riskCategory === 'A' || riskCategory === 'B') {
@@ -178,7 +177,7 @@ export default function ReportScreen() {
           content: {
             title: '⚠️ Safety Alert',
             body: `You have reported an incident in a ${riskCategory === 'A' ? 'high' : 'moderate'} risk area. ${getRiskMessage(riskCategory)}`,
-            data: { riskLevel: riskCategory, riskScore },
+            data: { riskLevel: riskCategory },
             sound: true,
             priority: Notifications.AndroidNotificationPriority.HIGH,
           },
@@ -188,7 +187,7 @@ export default function ReportScreen() {
       
       Alert.alert(
         'Report Submitted',
-        `Report submitted successfully!\nRisk Category: ${riskCategory}\nRisk Score: ${riskScore.toFixed(2)}\n\n${getRiskMessage(riskCategory)}`,
+        `Report submitted successfully!\nRisk Category: ${riskCategory}\n\n${getRiskMessage(riskCategory)}`,
         [{ text: 'OK', onPress: () => router.replace('/map') }]
       );
     } catch (error) {

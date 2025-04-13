@@ -350,7 +350,7 @@ export default function MapScreen() {
               // Still show the alert even if notification fails
               Alert.alert(
                 'Risk Assessment',
-                `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\nDistance: ${closestDistance.toFixed(2)}m\n\n${getRiskMessage(currentRiskLevel)}`,
+                `Risk Level: ${currentRiskLevel}\n\n${getRiskMessage(currentRiskLevel)}`,
                 [{ text: 'OK' }]
               );
             }
@@ -358,7 +358,7 @@ export default function MapScreen() {
         } else if (isManualCheck) {
           Alert.alert(
             'Risk Assessment',
-            `Risk Level: ${currentRiskLevel}\nRisk Score: ${currentRiskScore.toFixed(2)}\nDistance: ${closestDistance.toFixed(2)}m\n\n${getRiskMessage(currentRiskLevel)}`,
+            `Risk Level: ${currentRiskLevel}\n\n${getRiskMessage(currentRiskLevel)}`,
             [{ text: 'OK' }]
           );
         }
