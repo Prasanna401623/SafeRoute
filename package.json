@@ -1,4 +1,13 @@
 {
+  "name": "saferoute",
+  "version": "1.0.0",
+  "main": "frontend/expo-router/entry",
+  "scripts": {
+    "start": "cd frontend && expo start",
+    "android": "cd frontend && expo start --android",
+    "ios": "cd frontend && expo start --ios",
+    "web": "cd frontend && expo start --web"
+  },
   "dependencies": {
     "expo": "^52.0.44",
     "expo-location": "~18.0.10",
