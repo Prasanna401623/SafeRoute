@@ -15,7 +15,7 @@ SafeRoute is a mobile application that helps users navigate safely by providing 
 
 1. **Clone the repository**
 ```bash
-git clone [repository-url]
+git clone https://github.com/Prasanna401623/SafeRoute.git
 cd SafeRoute
 ```
 
