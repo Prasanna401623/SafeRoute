@@ -1,15 +1,16 @@
 import os
 import json
-from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
 import time
 
-# Initialize OpenAI client with API key from environment variable
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Get Gemini API key from environment variable
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not client.api_key:
-    raise ValueError("OPENAI_API_KEY environment variable is not set. Please set it before running the application.")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is not set. Please set it before running the application.")
+
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
 def get_text_from_file(file_obj):
     "this reads and returns text from file"
@@ -50,23 +51,26 @@ def clean_and_extract(text, max_retries=3):
     
     for attempt in range(max_retries):
         try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert in extracting structured geospatial and crime data"
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                max_tokens=150,
-                temperature=0.0,
-                timeout=30  # Added 30 second timeout
+            response = requests.post(
+                GEMINI_API_URL,
+                headers={"Content-Type": "application/json"},
+                json={
+                    "contents": [
+                        {
+                            "parts": [{"text": prompt}]
+                        }
+                    ]
+                },
+                timeout=30
             )
-            extracted = response.choices[0].message.content.strip()
+            response.raise_for_status()
+            result = response.json()
+            extracted = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+            # Clean up markdown code fences if present
+            if extracted.startswith("```"):
+                extracted = extracted.split("\n", 1)[1]  # Remove first line
+                extracted = extracted.rsplit("```", 1)[0]  # Remove last fence
+                extracted = extracted.strip()
             data = json.loads(extracted)
             return data
         except Exception as e:
@@ -79,4 +83,4 @@ def clean_and_extract(text, max_retries=3):
                     "crime_type": None,
                     "date": None
                 }
-            time.sleep(2 ** attempt)  # Exponential backoff 
+            time.sleep(2 ** attempt)  # Exponential backoff
