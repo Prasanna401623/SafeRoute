@@ -13,7 +13,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { StatusBar } from 'expo-status-bar';
 import { Picker } from '@react-native-picker/picker';
 import { FontAwesome } from '@expo/vector-icons';
-import { OPENAI_API_KEY } from '@/config/env';
+import { GEMINI_API_KEY } from '@/config/env';
 
 // List of major Louisiana cities
 const LOUISIANA_CITIES = [
@@ -39,47 +39,50 @@ export default function StatisticsScreen() {
 
   useEffect(() => {
     // Basic environment check without exposing sensitive information
-    console.log('OpenAI API Key is configured:', !!OPENAI_API_KEY);
+    console.log('Gemini API Key is configured:', !!GEMINI_API_KEY);
   }, []);
 
   const fetchCityData = async (city: LouisianaCity) => {
     setLoading(true);
     try {
-      if (!OPENAI_API_KEY) {
+      if (!GEMINI_API_KEY) {
         console.error('API key is undefined');
-        throw new Error('API key is not configured');
+        throw new Error('Gemini API key is not configured');
       }
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a knowledgeable assistant providing up-to-date, accurate crime statistics and safety information for cities in Louisiana. Organize your response clearly under headings. Focus on recent official data where possible. Keep the tone factual, concise, and easy to understand for the general public.',
-            },
-            {
-              role: 'user',
-              content: `Provide recent crime statistics and safety information for ${city}, Louisiana. Structure the information as follows:
+      const prompt = `You are a knowledgeable assistant providing up-to-date, accurate crime statistics and safety information for cities in Louisiana. Organize your response clearly under headings. Focus on recent official data where possible. Keep the tone factual, concise, and easy to understand for the general public.
+
+Provide recent crime statistics and safety information for ${city}, Louisiana. Structure the information as follows:
 
 1. **Crime Statistics**: Summarize recent crime rates (violent crime, property crime, etc.). Use specific numbers or trends if possible.
 2. **Crime Breakdown**: List common types of crimes (e.g., assault, theft, burglary) with brief notes if any are rising or falling.
 3. **Safety Tips**: Provide 3–5 safety recommendations tailored for people living in or visiting ${city}.
 4. **General Safety Level**: Briefly describe the overall safety situation (e.g., "Generally safe downtown but caution needed in certain areas").
 
-Keep the information clear, structured, and factual. Avoid speculation or opinions.`,
-            },
-          ],
-        }),
-      });
+Keep the information clear, structured, and factual. Avoid speculation or opinions.`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }],
+              },
+            ],
+          }),
+        }
+      );
 
       const json = await response.json();
-      const data = json.choices[0].message.content;
+      if (json.error) {
+        throw new Error(json.error.message || 'Gemini API error');
+      }
+      const data = json.candidates[0].content.parts[0].text;
       setCrimeData(data);
     } catch (error) {
       console.error('Error fetching city data:', error);
@@ -100,10 +103,10 @@ Keep the information clear, structured, and factual. Avoid speculation or opinio
   return (
     <ThemedView style={styles.container}>
       <StatusBar style="dark" />
-      
+
       <View style={styles.header}>
         <ThemedText style={styles.headerTitle}>SafeRoute Statistics</ThemedText>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.citySelector}
           onPress={() => setShowPicker(true)}
         >
@@ -130,7 +133,7 @@ Keep the information clear, structured, and factual. Avoid speculation or opinio
             </View>
           ) : (
             crimeData && (
-              <ScrollView 
+              <ScrollView
                 style={styles.scrollView}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
