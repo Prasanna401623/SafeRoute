@@ -7,8 +7,10 @@ import { ThemedView } from '@/components/ThemedView';
 import { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
 import { API_BASE_URL } from '@/constants/config';
+import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [currentRisk, setCurrentRisk] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -37,7 +39,7 @@ export default function HomeScreen() {
     }
   };
 
-  const getTimeBasedTips = () => {
+  const getTimeBasedTips = (): { icon: React.ComponentProps<typeof FontAwesome>['name']; color: string; text: string }[] => {
     const hour = currentTime.getHours();
     if (hour >= 18 || hour <= 6) {
       return [
@@ -68,9 +70,9 @@ export default function HomeScreen() {
     }
   };
 
-  const getRiskBasedTips = () => {
+  const getRiskBasedTips = (): { icon: React.ComponentProps<typeof FontAwesome>['name']; color: string; text: string }[] => {
     if (!currentRisk) return [];
-    
+
     switch (currentRisk) {
       case 'A':
         return [{
@@ -94,7 +96,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -111,7 +113,7 @@ export default function HomeScreen() {
             <FontAwesome name="map-marker" size={24} color="#DB4437" style={styles.actionIcon} />
             <ThemedText style={styles.actionText}>Start Navigation</ThemedText>
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.actionButton}>
             <FontAwesome name="history" size={24} color="#4285F4" style={styles.actionIcon} />
             <ThemedText style={styles.actionText}>Recent Routes</ThemedText>
@@ -135,7 +137,10 @@ export default function HomeScreen() {
           <ThemedText style={styles.descriptionText}>
             View real-time crime statistics and safety scores for your area.
           </ThemedText>
-          <TouchableOpacity style={styles.statsButton}>
+          <TouchableOpacity
+            style={styles.statsButton}
+            onPress={() => router.push('/statistics')}
+          >
             <ThemedText style={styles.statsButtonText}>View Statistics</ThemedText>
           </TouchableOpacity>
         </View>
